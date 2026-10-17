@@ -1,0 +1,134 @@
+[
+  {
+    "task_id": "",
+    "title": "i-report News Platform",
+    "description": "Visit the attached link and analyze the given UI design features and select your most preffered UI color combinations for a News posting platform. This task is group prefference based and the selection with the highest number of positive selections will be selected for implementation.",
+    "category": "main",
+    "reward": "0.82",
+    "min_tier": "member",
+    "is_active": true,
+    "is_orientation": true,
+    "link": "https://www.i-report.dev/ui-preference"
+  },
+  {
+    "task_id": "",
+    "title": "I-Report Layout",
+    "description": "Visit the attached link and select your most preffered UI layout for a news posting platform that will make it easily captivating to readers. Identify which sections should be re-organized (focus on suggesting where marketing palletes should be located at to make it capture readers attention easily (base this on the section that you focus on the most while reading the posts in the platform.",
+    "category": "main",
+    "reward": "1.18",
+    "min_tier": "member",
+    "is_active": true,
+    "is_orientation": true,
+    "link": "https://www.i-report.dev/layout"
+  },
+  {
+    "task_id": "",
+    "title": "Cora-Care Ai Chatbot Review",
+    "description": "Visit the accompanying links (https://www.coratest/review), test the chatbot and write a honest review and recomendation  on how to improvwe the chatbot. Your review should give a honenst answer on how the bot is easy to use and any improvement recomendations if you have any.",
+    "category": "social",
+    "reward": "1.50",
+    "min_tier": "member",
+    "is_active": true,
+    "is_orientation": true,
+    "link": "https://www.coratest.dev/review"
+  },
+  {
+    "task_id": "",
+    "title": "i-report Social Media Engagement",
+    "description": "Visit the given social media handle and write a positive review about I-report news platform. Also ensure you reply to at least 3 comments from other users in a positive manner to boost engagement on the platform.",
+    "category": "social",
+    "reward": "2.11",
+    "min_tier": "member",
+    "is_active": true,
+    "is_orientation": true,
+    "link": "https://i-report.dev/review"
+  },
+  {
+    "task_id": "",
+    "title": "Ai use survey",
+    "description": "Follow the given link and complete the survey on Ai adoption, after completing the survey write a brief report on any recomendations on what might not have been covered in the survey questions that you deem can present necessary data & feedback for respective company (start by readung the company profile first).",
+    "category": "surveys",
+    "reward": "10.50",
+    "min_tier": "member",
+    "is_active": true,
+    "is_orientation": true,
+    "link": "https://www.electron.dev/ai-adoption"
+  },
+  {
+    "task_id": "",
+    "title": "Ai in production survey",
+    "description": "This survey requires you to conduct an extensive survey on adoption of AI in production automation, consider the given companies and global regions as top priority (this survey require specific regional factual data, only provide answers about your residential regions, and ensure provided feedback is factual).",
+    "category": "surveys",
+    "reward": "17.50",
+    "min_tier": "member",
+    "is_active": true,
+    "is_orientation": true,
+    "link": "https://www.productionai.dev/survey"
+  },
+  {
+    "task_id": "",
+    "title": "Cora-care chatbot testing",
+    "description": "Follow the given link, create an accoun in the platform and use the chatbot to get answers. Minimum use time is 2 hours to be considered to have gathered enough data to give a reliable feedback. All the answers you get from the chatbot should be compiled and analyzed for accuracy by conducting an external based researc (compile your findings and submit your report for review. Report any challenges and bugs you experience when using the platfor",
+    "category": "testing",
+    "reward": "47.84",
+    "min_tier": "member",
+    "is_active": true,
+    "is_orientation": true,
+    "link": "https://www.coratest.dev/chatbot"
+  },
+  {
+    "task_id": "",
+    "title": "ElectonAI testing",
+    "description": "Follow the given link to access Ai testing environment and use the AI to complete various tasks, Note that; all the data of your activity in the testing environment will be tracked and recorded to be used in Ai algorithm imoprovement, report any challenges, errors and bugs you experience when on the platform.",
+    "category": "testing",
+    "reward": "20.23",
+    "min_tier": "member",
+    "is_active": true,
+    "is_orientation": true,
+    "link": "https://www.electronai.dev/testing"
+  },
+  {
+    "task_id": "",
+    "title": "Data Labeling (Annotation) & Integration with preceeding Feature Engineering",
+    "description": "Visit the given link and complete the data labeling tasks as per the provided guidelines. Ensure accuracy and consistency in your annotations to help improve AI model training. After labeling, proceed to integrate the labeled data with the preceeding feature engineering steps to prepare the dataset for model training.",
+    "category": "ai",
+    "reward": "29.50",
+    "min_tier": "member",
+    "is_active": true,
+    "is_orientation": true,
+    "link": "https://www.electron.dev/data-labeling"
+  },
+  {
+    "task_id": "",
+    "title": "Gradient Descent    with preceding Validation / Testing",
+    "description": "Follow the provided link to implement gradient descent algorithms on the given datasets. Ensure to validate and test your models thoroughly to achieve optimal performance. ",
+    "category": "ai",
+    "reward": "48.50",
+    "min_tier": "member",
+    "is_active": true,
+    "is_orientation": true,
+    "link": "https://www.electron.dev/gradient-descent"
+  },
+  {
+    "task_id": "",
+    "title": "Mobile App Workflow & UX Validation",
+    "description": "Test and verify mobile application onboarding flows, session persistence, and UI responsive layout across viewport sizes.",
+    "category": "app",
+    "reward": "15.00",
+    "min_tier": "member",
+    "is_active": true,
+    "is_orientation": true,
+    "link": "https://www.i-report.dev/app-validation"
+  },
+  {
+    "task_id": "",
+    "title": "Application Performance & Navigation Flow",
+    "description": "Evaluate mobile and desktop application state transitions, asset loading latency, and offline fallback behavior.",
+    "category": "app",
+    "reward": "22.50",
+    "min_tier": "member",
+    "is_active": true,
+    "is_orientation": true,
+    "link": "https://www.coratest.dev/app-performance"
+  }
+]

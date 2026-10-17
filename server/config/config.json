@@ -1,0 +1,9 @@
+{
+  "min_withdrawal_amount": "10.00",
+  "max_daily_tasks_per_user": "50",
+  "task_approval_timeout_hours": "48",
+  "support_email": "support@protaskergeek.com",
+  "platform_currency": "USD",
+  "maintenance_mode": "false",
+  "new_user_approval_required": "true"
+}

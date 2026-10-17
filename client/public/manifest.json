@@ -1,0 +1,83 @@
+{
+  "name": "System Moderation Group - Task completion management Platform",
+  "short_name": "ProTaskerGeek",
+  "description": "ProTaskerGeek is a task completion management platform managed by Advanta Ventures. Our service is to provide a Seamless work Platform for a Dynamic in-house Environment, where we Purify Data, Train Cutting-edge Algorithms, and Deliver Rigorous Testing for Newly Developed Systems in a collaborative, high-impact workspace. We handle any tasks involving; AI & Algorith Training, Pre-Launch System Testing; - Apps/website/Devices/Algorithms/Intergrations testing e.t.c., User informed Product Design/Testing, Aid in Product viability analysis; Surveys and Polls, Data Collection & Categorization, Content Moderation, and more. Join us to be part of a dynamic team dedicated to excellence in task management and system enhancement. Or hire us to streamline your project needs with precision and efficiency.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#145e2d",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en",
+  "categories": [
+    "productivity",
+    "business",
+    "finance"
+  ],
+  "icons": [
+    {
+      "src": "/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Start Tasks",
+      "short_name": "Tasks",
+      "description": "View and start available tasks",
+      "url": "/tasks",
+      "icons": [
+        {
+          "src": "/icon-96x96.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "View Wallet",
+      "short_name": "Wallet",
+      "description": "Check your earnings and balance",
+      "url": "/wallet",
+      "icons": [
+        {
+          "src": "/icon-96x96.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-1.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ]
+}

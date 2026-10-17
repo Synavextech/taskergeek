@@ -1,0 +1,11 @@
+{
+  "gender": ["male", "female", "geek"],
+  "skill-upgrade_tier": ["member", "silver", "bronze", "diamond", "gold", "vip"],
+  "task_category": ["main", "social", "surveys", "testing", "ai", "app"],
+  "task_status": ["pending", "approved", "rejected"],
+  "transaction_type": ["earning", "withdrawal", "referral", "skill-upgrade"],
+  "transaction_status": ["pending", "completed", "failed"],
+  "approval_status": ["pending", "approved", "rejected"],
+  "payment_method": ["paypal"],
+  "order_status": ["pending", "completed", "failed", "refunded"]
+}
