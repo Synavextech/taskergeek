@@ -29,24 +29,47 @@ export function getSupabaseClient(req: Request, res: Response) {
           return req.cookies?.[name];
         },
         set(name: string, value: string, options: CookieOptions) {
-          res.cookie(name, value, {
-            ...options,
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-          });
+          if (res.headersSent) return;
+          try {
+            res.cookie(name, value, {
+              ...options,
+              httpOnly: true,
+              secure: process.env.NODE_ENV === 'production',
+              sameSite: 'lax',
+            });
+          } catch {
+            // Ignore if headers already sent
+          }
         },
         remove(name: string, options: CookieOptions) {
-          res.clearCookie(name, {
-            ...options,
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-          });
+          if (res.headersSent) return;
+          try {
+            res.clearCookie(name, {
+              ...options,
+              httpOnly: true,
+              secure: process.env.NODE_ENV === 'production',
+              sameSite: 'lax',
+            });
+          } catch {
+            // Ignore if headers already sent
+          }
         },
       },
     }
   );
+}
+
+/**
+ * Creates a standalone non-SSR Supabase client with the anon key.
+ * Safe for background/API operations without touching Express response cookies.
+ */
+export function createAnonClient(): SupabaseClient {
+  return createClient(supabaseUrl!, supabaseAnonKey!, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
 }
 
 /**

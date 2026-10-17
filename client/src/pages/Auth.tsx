@@ -129,7 +129,17 @@ export default function Auth() {
       : "Unable to create account. Please check your information and try again.";
 
     if (error.message) {
-      if (error.message.includes('Email already registered') || error.message.includes('User already registered')) {
+      if (error.message.includes('confirm your email') || error.code === 'EMAIL_NOT_CONFIRMED') {
+        errorMessage = "Your email is not confirmed yet. Please verify your email to activate your account.";
+        setLoginError(errorMessage);
+        toast({
+          title: "Email Confirmation Required",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        setLocation(`/auth/verify-email?email=${encodeURIComponent(loginForm.getValues('email') || '')}`);
+        return;
+      } else if (error.message.includes('Email already registered') || error.message.includes('User already registered')) {
         errorMessage = "This email address is already registered. Please use a different email or try logging in.";
       } else if (error.message.includes('Error sending confirmation email') ||
         error.message.includes('confirmation email') ||
@@ -353,9 +363,10 @@ export default function Auth() {
       if (!response.ok) {
         throw new Error(result.error?.message || 'Registration failed');
       }
-      if (result.requiresConfirmation) {
+      if (result.data?.requiresConfirmation || result.requiresConfirmation) {
         return {
           requiresConfirmation: true,
+          email: data.email,
           message: result.message
         };
       }
@@ -370,11 +381,11 @@ export default function Auth() {
 
       if (data.requiresConfirmation) {
         toast({
-          title: "Check Your Email",
-          description: "We've sent you a confirmation link. Please click it to complete your registration and continue to orientation.",
-          duration: 8000,
+          title: "Confirmation Email Sent",
+          description: "Please check your inbox to confirm your account and accept the Terms & Conditions.",
+          duration: 6000,
         });
-        setActiveTab("login");
+        setLocation(`/auth/verify-email?email=${encodeURIComponent(data.email || '')}`);
         return;
       }
 
@@ -746,7 +757,7 @@ export default function Auth() {
               Security Verification Required
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground mt-2 leading-relaxed">
-              We detected an unrecognized device or unusual location. To protect your account, enter the 6-digit one-time code sent to:
+              We detected an unrecognized device or unusual location. To protect your account, enter the security verification code sent to:
               <br />
               <strong className="text-foreground font-semibold">{otpChallenge?.email}</strong>
             </DialogDescription>
@@ -766,7 +777,7 @@ export default function Auth() {
           >
             <div>
               <Label htmlFor="otp-input" className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                6-Digit Security Code
+                Security Verification Code
               </Label>
               <div className="relative mt-2">
                 <Input
@@ -774,15 +785,15 @@ export default function Auth() {
                   type="text"
                   inputMode="numeric"
                   autoComplete="one-time-code"
-                  maxLength={6}
+                  maxLength={10}
                   value={otpCode}
                   onChange={(e) => {
                     const clean = e.target.value.replace(/\D/g, "");
                     setOtpCode(clean);
                     if (otpError) setOtpError(null);
                   }}
-                  placeholder="------"
-                  className="text-center font-mono text-2xl tracking-[0.5em] h-14 rounded-xl border-border/80 focus:border-accent focus:ring-accent"
+                  placeholder="Enter code"
+                  className="text-center font-mono text-xl tracking-[0.3em] h-14 rounded-xl border-border/80 focus:border-accent focus:ring-accent"
                   autoFocus
                 />
               </div>

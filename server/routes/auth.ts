@@ -22,6 +22,8 @@ import { generateReferralCode } from "../utils";
 import { anomalyDetector } from "../services/anomalyDetector";
 import { securityService } from "../services/securityService";
 
+import { createAnonClient } from "../supabase";
+
 const router = Router();
 
 // Logout endpoint
@@ -83,7 +85,70 @@ router.get("/verify-email-status", async (req: any, res) => {
     }
 });
 
-// Password Reset with Custom 6-Digit One-Time Passcode (OTP - 15 min expiry)
+// Resend Signup Email Confirmation
+router.post('/resend-confirmation', otpRateLimit, asyncHandler(async (req: any, res: Response) => {
+    const { email } = req.body;
+
+    if (!email || !email.trim()) {
+        throw new AppError('Email address is required', 400, 'EMAIL_REQUIRED');
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const clientOrigin = (req.headers.origin as string) || (req.headers.referer ? new URL(req.headers.referer as string).origin : null);
+    const isLocal = clientOrigin && (clientOrigin.includes('localhost') || clientOrigin.includes('127.0.0.1'));
+    const baseUrl = isLocal ? clientOrigin : (process.env.PRODUCTION_URL || `${req.protocol}://${req.get('host')}`);
+
+    try {
+        const { error } = await req.supabase.auth.resend({
+            type: 'signup',
+            email: normalizedEmail,
+            options: {
+                emailRedirectTo: `${baseUrl}/auth/verify-email`
+            }
+        });
+
+        if (error) {
+            console.warn('[AUTH] Supabase resend confirmation notice:', error.message);
+            throw new AppError(error.message || 'Failed to resend confirmation email', 400, 'RESEND_FAILED');
+        }
+    } catch (err: any) {
+        throw new AppError(err?.message || 'Failed to resend confirmation email', 400, 'RESEND_FAILED');
+    }
+
+    return sendSuccess(res, { success: true }, 'Confirmation email has been dispatched.');
+}));
+
+// Verify Email Confirmation Code
+router.post('/verify-email-code', otpRateLimit, asyncHandler(async (req: any, res: Response) => {
+    const { email, code } = req.body;
+
+    if (!email || !code) {
+        throw new AppError('Email and confirmation code are required', 400, 'VALIDATION_ERROR');
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const cleanCode = String(code).replace(/\D/g, '').trim();
+
+    const sbAnon = createAnonClient();
+    const { data: sbData, error: sbError } = await sbAnon.auth.verifyOtp({
+        email: normalizedEmail,
+        token: cleanCode,
+        type: 'signup'
+    });
+
+    if (sbError || !sbData?.user) {
+        throw new AppError(sbError?.message || 'Invalid or expired confirmation code', 400, 'INVALID_CONFIRMATION_CODE');
+    }
+
+    authLog('email-confirmed-via-code', { userId: sbData.user.id, email: normalizedEmail });
+
+    return sendSuccess(res, {
+        confirmed: true,
+        user: sbData.user
+    }, 'Email confirmed successfully! You can now sign in.');
+}));
+
+// Password Reset with Custom One-Time Passcode or Supabase Recovery (15 min expiry)
 router.post('/forgot-password', authRateLimit, asyncHandler(async (req: any, res: Response) => {
     const { email } = req.body;
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || req.socket?.remoteAddress || 'unknown';
@@ -110,7 +175,11 @@ router.post('/forgot-password', authRateLimit, asyncHandler(async (req: any, res
         // Continue gracefully
     }
 
-    // 1. Custom backend 6-digit OTP challenge (15 minute expiration)
+    // Clear any previous consecutive failure lockouts when user initiates recovery
+    clearAccountAuthFailure(normalizedEmail);
+    anomalyDetector.resetFailures(normalizedEmail);
+
+    // 1. Custom backend OTP challenge (15 minute expiration)
     const challenge = await securityService.createPasswordResetChallenge(
         normalizedEmail,
         userName,
@@ -124,9 +193,14 @@ router.post('/forgot-password', authRateLimit, asyncHandler(async (req: any, res
 
     // 2. Also trigger Supabase internal auth password reset (if Supabase mail template uses code/magic link)
     try {
+        const clientOrigin = (req.headers.origin as string) || (req.headers.referer ? new URL(req.headers.referer as string).origin : null);
+        const isLocal = clientOrigin && (clientOrigin.includes('localhost') || clientOrigin.includes('127.0.0.1'));
+        const baseUrl = isLocal ? clientOrigin : (process.env.PRODUCTION_URL || `${req.protocol}://${req.get('host')}`);
+
         await req.supabase.auth.resetPasswordForEmail(normalizedEmail, {
-            redirectTo: `${process.env.PRODUCTION_URL || 'http://localhost:5000'}/update-password`
+            redirectTo: `${baseUrl}/update-password`
         });
+        console.log(`[AUTH] Dispatched Supabase recovery email with redirect: ${baseUrl}/update-password`);
     } catch (sbError) {
         console.warn('[AUTH] Supabase reset trigger notice:', sbError);
     }
@@ -136,29 +210,51 @@ router.post('/forgot-password', authRateLimit, asyncHandler(async (req: any, res
     return sendSuccess(res, {
         email: normalizedEmail,
         expiresInMinutes: 15
-    }, 'A 6-digit password recovery code has been dispatched to your email address (valid for 15 minutes).');
+    }, 'A password recovery code and direct link have been dispatched to your email address (valid for 15 minutes).');
 }));
 
-// Verify 6-digit Reset OTP Code
+// Verify Reset OTP Code (supports 6 to 10 character tokens)
 router.post('/verify-reset-otp', otpRateLimit, asyncHandler(async (req: any, res: Response) => {
     const { email, code } = req.body;
 
     if (!email || !code) {
-        throw new AppError('Email and 6-digit recovery code are required', 400, 'VALIDATION_ERROR');
+        throw new AppError('Email and recovery code are required', 400, 'VALIDATION_ERROR');
     }
 
-    const verification = securityService.verifyPasswordResetOTP(email, code);
+    const normalizedEmail = email.toLowerCase().trim();
+    const cleanCode = String(code).replace(/\D/g, '').trim();
 
-    if (!verification.success) {
-        throw new AppError(verification.error || 'Invalid or expired recovery code', 400, 'INVALID_OTP');
+    // 1. Try custom backend OTP challenge
+    const verification = securityService.verifyPasswordResetOTP(normalizedEmail, cleanCode);
+    if (verification.success) {
+        authLog('password-reset-otp-verified', { email: normalizedEmail });
+        return sendSuccess(res, {
+            email: normalizedEmail,
+            resetToken: verification.resetToken
+        }, 'Recovery code verified successfully');
     }
 
-    authLog('password-reset-otp-verified', { email: email.toLowerCase().trim() });
+    // 2. Fallback: Try Supabase Auth native OTP recovery via standalone client
+    try {
+        const sbAnon = createAnonClient();
+        const { data: sbData, error: sbError } = await sbAnon.auth.verifyOtp({
+            email: normalizedEmail,
+            token: cleanCode,
+            type: 'recovery'
+        });
 
-    return sendSuccess(res, {
-        email: email.toLowerCase().trim(),
-        resetToken: verification.resetToken
-    }, 'Recovery code verified successfully');
+        if (!sbError && sbData?.user) {
+            authLog('password-reset-supabase-otp-verified', { email: normalizedEmail });
+            return sendSuccess(res, {
+                email: normalizedEmail,
+                resetToken: `sb_verified_${Buffer.from(normalizedEmail).toString('base64')}`
+            }, 'Recovery code verified successfully');
+        }
+    } catch (sbErr) {
+        console.warn('[AUTH] Supabase OTP verify error:', sbErr);
+    }
+
+    throw new AppError(verification.error || 'Invalid or expired recovery code', 400, 'INVALID_OTP');
 }));
 
 // Complete Password Reset
@@ -178,11 +274,51 @@ router.post('/reset-password', otpRateLimit, asyncHandler(async (req: any, res: 
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+    const cleanCode = code ? String(code).replace(/\D/g, '').trim() : '';
 
-    // Verify code or resetToken with securityService
-    const verification = securityService.validateAndConsumeReset(normalizedEmail, resetToken || code);
-    if (!verification.success) {
-        throw new AppError(verification.error || 'Invalid or expired recovery credentials', 400, 'INVALID_RESET_CREDENTIALS');
+    let isVerified = false;
+
+    // 1. Check if token was verified via Supabase OTP route
+    if (resetToken && resetToken.startsWith('sb_verified_')) {
+        const encoded = resetToken.replace('sb_verified_', '');
+        try {
+            const decodedEmail = Buffer.from(encoded, 'base64').toString('utf-8');
+            if (decodedEmail.toLowerCase() === normalizedEmail) {
+                isVerified = true;
+            }
+        } catch {
+            // Ignore decoding failure
+        }
+    }
+
+    // 2. Check custom securityService challenge
+    if (!isVerified) {
+        const verification = securityService.validateAndConsumeReset(normalizedEmail, resetToken || cleanCode);
+        if (verification.success) {
+            isVerified = true;
+        }
+    }
+
+    // 3. Fallback: Verify code directly via Supabase Auth recovery OTP
+    if (!isVerified && cleanCode) {
+        try {
+            const sbAnon = createAnonClient();
+            const { data: sbData, error: sbError } = await sbAnon.auth.verifyOtp({
+                email: normalizedEmail,
+                token: cleanCode,
+                type: 'recovery'
+            });
+
+            if (!sbError && sbData?.user) {
+                isVerified = true;
+            }
+        } catch (sbErr) {
+            console.warn('[AUTH] Direct Supabase verifyOtp fallback notice:', sbErr);
+        }
+    }
+
+    if (!isVerified) {
+        throw new AppError('Invalid or expired recovery credentials. Please enter a valid code or request a fresh one.', 400, 'INVALID_RESET_CREDENTIALS');
     }
 
     // Find the user in Supabase auth
@@ -205,6 +341,10 @@ router.post('/reset-password', otpRateLimit, asyncHandler(async (req: any, res: 
         console.error('[AUTH] Supabase admin updateUserById failed:', updateError);
         throw new AppError(updateError.message || 'Failed to update account password', 500, 'UPDATE_FAILED');
     }
+
+    // Clear failed login tracking and anomaly lockouts for restored user
+    clearAccountAuthFailure(normalizedEmail);
+    anomalyDetector.resetFailures(normalizedEmail);
 
     authLog('password-reset-completed', { userId: targetUser.id, email: normalizedEmail });
 
@@ -246,7 +386,7 @@ router.post('/register', asyncHandler(async (req: any, res: Response) => {
         const { data: authData, error: authError } = await req.supabaseAdmin.auth.admin.createUser({
             email: validatedData.email,
             password: validatedData.password,
-            email_confirm: true,
+            email_confirm: false,
             user_metadata: {
                 full_name: validatedData.name,
                 name: validatedData.name,
@@ -298,38 +438,43 @@ router.post('/register', asyncHandler(async (req: any, res: Response) => {
         }
 
         const profile = createdProfile;
-        const { data: signInData, error: signInError } = await req.supabase.auth.signInWithPassword({
-            email: validatedData.email,
-            password: validatedData.password
-        });
 
-        if (req.session) {
-            req.session.user = profile;
-            await new Promise<void>((resolve, reject) => {
-                req.session.save((err: any) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
+        // Dispatch initial signup confirmation email with origin-aware redirect
+        const clientOrigin = (req.headers.origin as string) || (req.headers.referer ? new URL(req.headers.referer as string).origin : null);
+        const isLocal = clientOrigin && (clientOrigin.includes('localhost') || clientOrigin.includes('127.0.0.1'));
+        const baseUrl = isLocal ? clientOrigin : (process.env.PRODUCTION_URL || `${req.protocol}://${req.get('host')}`);
+
+        try {
+            await req.supabase.auth.resend({
+                type: 'signup',
+                email: validatedData.email,
+                options: {
+                    emailRedirectTo: `${baseUrl}/auth/verify-email`
+                }
             });
+            console.log(`[AUTH] Dispatched signup confirmation email to ${validatedData.email} (Redirect: ${baseUrl}/auth/verify-email)`);
+        } catch (resendErr) {
+            console.warn('[AUTH] Signup confirmation dispatch notice:', resendErr);
         }
 
-        authLog('register-success', {
+        authLog('register-pending-confirmation', {
             userId: profile.id,
-            approval_status: profile.approval_status
+            email: profile.email
         });
 
         notifyAdmins(
             req.supabaseAdmin,
             "New User Registration",
-            `New user ${profile.name} (${profile.email}) has registered.`,
+            `New user ${profile.name} (${profile.email}) has registered and requires email confirmation.`,
             "user",
             { userId: profile.id }
         );
 
         return sendSuccess(res, {
             user: profile,
-            session: signInData?.session
-        }, 'Registration successful');
+            requiresConfirmation: true,
+            email: validatedData.email
+        }, 'Registration successful! Please check your email to confirm your account and accept the Terms & Conditions.');
     } catch (error) {
         if (error instanceof z.ZodError) {
             throw new AppError('Validation failed', 400, 'VALIDATION_ERROR', error.errors);
@@ -470,9 +615,17 @@ router.post('/login', authRateLimit, accountRateLimit, asyncHandler(async (req: 
     });
 
     if (signInError || !signInData?.user) {
+        if (signInError?.message?.toLowerCase().includes('email not confirmed')) {
+            throw new AppError('Please confirm your email address before logging in. A confirmation link has been sent to your inbox.', 403, 'EMAIL_NOT_CONFIRMED');
+        }
         recordAccountAuthFailure(email);
         anomalyDetector.recordFailure(email, clientIp);
         throw new AppError('Invalid credentials', 401, 'AUTH_INVALID');
+    }
+
+    // Explicit check: require email confirmation before allowing login
+    if (!signInData.user.email_confirmed_at) {
+        throw new AppError('Please confirm your email address before logging in. A confirmation link has been sent to your inbox.', 403, 'EMAIL_NOT_CONFIRMED');
     }
 
     const profile = await storage.getUser(req.supabaseAdmin, signInData.user.id);
@@ -501,6 +654,17 @@ router.post('/login', authRateLimit, accountRateLimit, asyncHandler(async (req: 
             anomalyCheck.reasons
         );
 
+        // Also trigger Supabase Auth OTP delivery so an email is dispatched to the user's inbox
+        try {
+            await req.supabase.auth.signInWithOtp({
+                email: profile.email,
+                options: { shouldCreateUser: false }
+            });
+            console.log(`[SECURITY] Dispatched Supabase security login OTP to ${profile.email}`);
+        } catch (sbOtpErr) {
+            console.warn('[SECURITY] Notice: Supabase signInWithOtp trigger:', sbOtpErr);
+        }
+
         return res.json({
             success: true,
             status: "SUSPICIOUS_CHALLENGE_REQUIRED",
@@ -510,7 +674,7 @@ router.post('/login', authRateLimit, accountRateLimit, asyncHandler(async (req: 
                 expiresInSeconds: challenge.expiresInSeconds,
                 reasons: anomalyCheck.reasons
             },
-            message: "Additional verification required. We have sent a 6-digit one-time passcode to your email."
+            message: "Additional verification required. We have sent a verification code to your email."
         });
     }
 
@@ -545,13 +709,39 @@ router.post('/verify-otp', otpRateLimit, asyncHandler(async (req: any, res: Resp
         throw new AppError('Challenge token and verification code are required', 400, 'VALIDATION_ERROR');
     }
 
-    const verification = securityService.verifyChallenge(challengeToken, otpCode);
+    const cleanCode = String(otpCode).replace(/\D/g, '').trim();
 
+    let verification = securityService.verifyChallenge(challengeToken, cleanCode);
+    let userProfile = verification?.userProfile;
+    let supabaseSession = verification?.supabaseSession;
+
+    // Fallback: If custom verification fails, check Supabase native OTP verification
     if (!verification.success) {
-        throw new AppError(verification.error || 'Invalid or expired code', 400, 'OTP_VERIFICATION_FAILED');
+        const challenge = securityService.getChallenge(challengeToken);
+        if (challenge) {
+            try {
+                const sbAnon = createAnonClient();
+                const { data: sbData, error: sbError } = await sbAnon.auth.verifyOtp({
+                    email: challenge.email,
+                    token: cleanCode,
+                    type: 'email'
+                });
+
+                if (!sbError && sbData?.user) {
+                    userProfile = challenge.userProfile;
+                    supabaseSession = sbData.session || challenge.supabaseSession;
+                    securityService.consumeChallenge(challengeToken);
+                    verification = { success: true, userProfile, supabaseSession };
+                }
+            } catch (err) {
+                console.warn('[AUTH] Error during fallback Supabase OTP verification:', err);
+            }
+        }
     }
 
-    const { userProfile, supabaseSession } = verification;
+    if (!verification.success || !userProfile) {
+        throw new AppError(verification.error || 'Invalid or expired verification code', 400, 'OTP_VERIFICATION_FAILED');
+    }
 
     // Trust new device/IP and clear failure states
     anomalyDetector.recordSuccess(userProfile.id, userProfile.email, clientIp, userAgent);
@@ -584,10 +774,22 @@ router.post('/resend-otp', otpRateLimit, asyncHandler(async (req: any, res: Resp
         throw new AppError('Challenge token is required', 400, 'VALIDATION_ERROR');
     }
 
+    const challenge = securityService.getChallenge(challengeToken);
     const resend = await securityService.resendCode(challengeToken);
 
     if (!resend.success) {
         throw new AppError(resend.error || 'Failed to resend code', 400, 'RESEND_FAILED');
+    }
+
+    if (challenge) {
+        try {
+            await req.supabase.auth.signInWithOtp({
+                email: challenge.email,
+                options: { shouldCreateUser: false }
+            });
+        } catch (err) {
+            console.warn('[AUTH] Notice: Supabase resend signInWithOtp:', err);
+        }
     }
 
     return sendSuccess(res, { success: true }, 'A new verification code has been sent to your email');

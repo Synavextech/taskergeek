@@ -27,30 +27,35 @@ export default function UpdatePassword() {
 
     const initializeRecoverySession = async () => {
       try {
-        const { data: { session: existingSession } } = await supabase.auth.getSession();
-        const hasHash = window.location.hash || window.location.search.includes('code=');
-
-        if (existingSession && hasHash) {
-          console.log('[PASSWORD_RESET] Clearing existing session for recovery');
-          await supabase.auth.signOut();
+        // 1. Check for error description in hash or query parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        let hashParams: URLSearchParams | null = null;
+        if (window.location.hash) {
+          hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
         }
 
-        await new Promise(resolve => setTimeout(resolve, 500));
+        const errorDesc = hashParams?.get('error_description') || urlParams.get('error_description');
+        if (errorDesc) {
+          setError(decodeURIComponent(errorDesc.replace(/\+/g, ' ')));
+          setSessionLoading(false);
+          return;
+        }
 
+        // 2. Check existing session
         const { data: { session } } = await supabase.auth.getSession();
 
         if (session && isMounted) {
-          console.log('[PASSWORD_RESET] Session found:', session.user.email);
+          console.log('[PASSWORD_RESET] Recovery session active for:', session.user.email);
           setRecoverySession(true);
           setSessionLoading(false);
           return;
         }
 
-        console.log('[PASSWORD_RESET] No session found, waiting for auth events...');
+        console.log('[PASSWORD_RESET] Waiting for Supabase auth recovery event...');
       } catch (err) {
         console.error('[PASSWORD_RESET] Session check error:', err);
         if (isMounted) {
-          setError("Failed to initialize recovery session. Please try again.");
+          setError("Failed to initialize recovery session. Please try requesting a new link or using a 6-digit code.");
           setSessionLoading(false);
         }
       }

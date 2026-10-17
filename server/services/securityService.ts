@@ -90,6 +90,20 @@ class SecurityService {
   }
 
   /**
+   * Retrieves an active challenge by its challenge token.
+   */
+  public getChallenge(challengeToken: string): OTPChallenge | undefined {
+    return this.challenges.get(challengeToken);
+  }
+
+  /**
+   * Consumes and clears an active challenge.
+   */
+  public consumeChallenge(challengeToken: string): void {
+    this.challenges.delete(challengeToken);
+  }
+
+  /**
    * Verifies an entered candidate OTP against the stored challenge.
    */
   public verifyChallenge(

@@ -53,6 +53,34 @@ export default function ResetPassword() {
     return () => clearInterval(interval);
   }, [step, secondsLeft]);
 
+  // Auto-detect URL query parameters (e.g. ?email=...&code=...) or forward Supabase hash links
+  useEffect(() => {
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const urlEmail = searchParams.get('email');
+      const urlCode = searchParams.get('code') || searchParams.get('token');
+
+      if (urlEmail) {
+        setEmail(urlEmail);
+      }
+      if (urlCode) {
+        const clean = urlCode.replace(/\D/g, '').trim();
+        setOtpCode(clean);
+        if (clean.length >= 6 && clean.length <= 10) {
+          setStep('otp');
+          setSecondsLeft(900);
+        }
+      }
+
+      // If user landed here with Supabase recovery hash fragment, direct to /update-password
+      if (window.location.hash && (window.location.hash.includes('type=recovery') || window.location.hash.includes('access_token='))) {
+        setLocation(`/update-password${window.location.hash}`);
+      }
+    } catch (err) {
+      console.warn('[RESET_PASSWORD] URL param parse notice:', err);
+    }
+  }, [setLocation]);
+
   // Resend cooldown timer
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -70,7 +98,7 @@ export default function ResetPassword() {
     return `${mins}:${s.toString().padStart(2, '0')}`;
   };
 
-  // Step 1: Request 6-digit OTP
+  // Step 1: Request Recovery Code / Link
   const handleRequestOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -90,8 +118,8 @@ export default function ResetPassword() {
       }
 
       toast({
-        title: "6-Digit Code Sent",
-        description: "A one-time verification code has been dispatched to your email (expires in 15 mins).",
+        title: "Recovery Instructions Dispatched",
+        description: "A verification code and direct reset link have been dispatched to your email (expires in 15 mins).",
       });
 
       setStep('otp');
@@ -145,8 +173,8 @@ export default function ResetPassword() {
 
     const cleanCode = otpCode.replace(/\D/g, '').trim();
 
-    if (cleanCode.length !== 6) {
-      setError('Please enter the complete 6-digit verification code.');
+    if (cleanCode.length < 6 || cleanCode.length > 10) {
+      setError('Please enter a valid verification code (6 to 8 digits).');
       return;
     }
 
@@ -235,8 +263,8 @@ export default function ResetPassword() {
             {step === 'success' ? 'Password Updated' : 'Reset Password'}
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-            {step === 'email' && "Enter your registered email address to receive a 6-digit recovery code."}
-            {step === 'otp' && `Enter the 6-digit one-time code sent to ${email} and choose your new password.`}
+            {step === 'email' && "Enter your registered email address to receive recovery instructions."}
+            {step === 'otp' && `Enter the verification code sent to ${email} or click the direct link in your email.`}
             {step === 'success' && "Your password has been successfully updated. You may now log in to your account."}
           </p>
         </div>
@@ -277,10 +305,10 @@ export default function ResetPassword() {
                 {isLoading ? (
                   <span className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Sending Recovery Code...
+                    Sending Recovery Instructions...
                   </span>
                 ) : (
-                  "Send 6-Digit Recovery Code"
+                  "Send Recovery Instructions"
                 )}
               </Button>
 
@@ -296,7 +324,7 @@ export default function ResetPassword() {
             </form>
           )}
 
-          {/* STEP 2: Enter 6-Digit OTP & New Password */}
+          {/* STEP 2: Enter OTP & New Password */}
           {step === 'otp' && (
             <form onSubmit={handleResetPassword} className="space-y-4">
               {/* Timer & Expiry Notice */}
@@ -310,10 +338,10 @@ export default function ResetPassword() {
                 </span>
               </div>
 
-              {/* 6-Digit OTP Field */}
+              {/* Recovery Code Field */}
               <div className="space-y-1.5">
                 <label htmlFor="otpCode" className="text-xs font-semibold text-muted-foreground">
-                  6-Digit One-Time Code
+                  Recovery Verification Code
                 </label>
                 <div className="relative">
                   <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -321,10 +349,10 @@ export default function ResetPassword() {
                     id="otpCode"
                     type="text"
                     inputMode="numeric"
-                    maxLength={6}
+                    maxLength={10}
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                    placeholder="123456"
+                    placeholder="Enter code"
                     required
                     className="pl-10 font-mono tracking-widest text-base font-bold rounded-xl h-11 text-center"
                   />

@@ -63,3 +63,7 @@ coverage/
 tmp/
 *.tmp
 .eslintcache
+
+.agents/
+.agents/prompts/
+.agents/Implementations Plan
