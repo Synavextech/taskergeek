@@ -577,7 +577,6 @@ export default function Tasks() {
                       const count = tasks.filter((t) => t.category === cat.id).length;
                       return (
                         <SelectItem key={cat.id} value={cat.id} className="text-xs py-2">
-                          <span className="mr-2 text-sm">{cat.icon}</span>
                           <span className="font-semibold">{cat.name}</span>
                           <span className="text-muted-foreground ml-1.5">({count})</span>
                           <span className="ml-auto text-[10px] text-muted-foreground pl-2 font-mono uppercase">

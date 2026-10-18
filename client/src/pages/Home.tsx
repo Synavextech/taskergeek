@@ -316,9 +316,6 @@ export default function Home() {
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="text-2xl">{cat.icon}</span>
-                  <Badge variant="outline" className={`text-xs font-semibold uppercase ${cat.badgeClass}`}>
-                    Min Tier: {cat.minTier}
-                  </Badge>
                 </div>
                 <h3 className="font-bold text-base text-foreground">{cat.title}</h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">{cat.description}</p>
