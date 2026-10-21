@@ -2,6 +2,7 @@ import React from "react";
 import { Code2, Binary, Languages, Microscope, ShieldAlert, BookOpen, ArrowUpRight, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Discipline {
   id: string;
@@ -86,6 +87,15 @@ const DISCIPLINES: Discipline[] = [
 
 export function DisciplinesGrid() {
   const [, setLocation] = useLocation();
+  const { user } = useAuth();
+
+  const handleApply = (disciplineId: string) => {
+    if (user) {
+      setLocation(`/skill-upgrade?mode=assessment&discipline=${disciplineId}`);
+    } else {
+      setLocation(`/auth?redirect=${encodeURIComponent(`/skill-upgrade?mode=assessment&discipline=${disciplineId}`)}`);
+    }
+  };
 
   return (
     <section id="disciplines" className="py-20 sm:py-28 relative">
@@ -156,7 +166,7 @@ export function DisciplinesGrid() {
                 </div>
 
                 <Button
-                  onClick={() => setLocation("/auth")}
+                  onClick={() => handleApply(item.id)}
                   variant="outline"
                   className="w-full justify-between rounded-xl font-semibold border-border hover:border-accent hover:bg-accent hover:text-white transition-all group-hover:border-accent"
                 >

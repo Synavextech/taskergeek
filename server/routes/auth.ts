@@ -195,7 +195,8 @@ router.post('/forgot-password', authRateLimit, asyncHandler(async (req: any, res
     try {
         const clientOrigin = (req.headers.origin as string) || (req.headers.referer ? new URL(req.headers.referer as string).origin : null);
         const isLocal = clientOrigin && (clientOrigin.includes('localhost') || clientOrigin.includes('127.0.0.1'));
-        const baseUrl = isLocal ? clientOrigin : (process.env.PRODUCTION_URL || `${req.protocol}://${req.get('host')}`);
+        const configuredProdUrl = process.env.PRODUCTION_URL || process.env.VITE_SUPABASE_SITE_URL || 'https://protaskergeek.com';
+        const baseUrl = isLocal ? clientOrigin : configuredProdUrl;
 
         await req.supabase.auth.resetPasswordForEmail(normalizedEmail, {
             redirectTo: `${baseUrl}/update-password`
@@ -321,19 +322,39 @@ router.post('/reset-password', otpRateLimit, asyncHandler(async (req: any, res: 
         throw new AppError('Invalid or expired recovery credentials. Please enter a valid code or request a fresh one.', 400, 'INVALID_RESET_CREDENTIALS');
     }
 
-    // Find the user in Supabase auth
-    const { data: userList, error: listError } = await req.supabaseAdmin.auth.admin.listUsers();
-    if (listError) {
-        throw new AppError('Auth service error while updating credentials', 500, 'AUTH_LOOKUP_FAILED');
+    // Find the user in database / Supabase auth
+    let targetUserId: string | null = null;
+    try {
+        const { data: dbUser } = await req.supabaseAdmin
+            .from('users')
+            .select('id, email')
+            .eq('email', normalizedEmail)
+            .maybeSingle();
+
+        if (dbUser?.id) {
+            targetUserId = dbUser.id;
+        }
+    } catch (dbErr) {
+        console.warn('[AUTH] Direct dbUser lookup notice:', dbErr);
     }
 
-    const targetUser = userList?.users.find((u: any) => u.email?.toLowerCase() === normalizedEmail);
-    if (!targetUser) {
+    if (!targetUserId) {
+        // Fallback: search via admin listUsers
+        try {
+            const { data: userList } = await req.supabaseAdmin.auth.admin.listUsers();
+            const found = userList?.users?.find((u: any) => u.email?.toLowerCase() === normalizedEmail);
+            if (found?.id) targetUserId = found.id;
+        } catch (listErr) {
+            console.warn('[AUTH] Admin listUsers fallback notice:', listErr);
+        }
+    }
+
+    if (!targetUserId) {
         throw new AppError('Account not found for provided email address', 404, 'USER_NOT_FOUND');
     }
 
     // Update password in Supabase Auth Admin
-    const { error: updateError } = await req.supabaseAdmin.auth.admin.updateUserById(targetUser.id, {
+    const { error: updateError } = await req.supabaseAdmin.auth.admin.updateUserById(targetUserId, {
         password: newPassword
     });
 
@@ -346,7 +367,7 @@ router.post('/reset-password', otpRateLimit, asyncHandler(async (req: any, res: 
     clearAccountAuthFailure(normalizedEmail);
     anomalyDetector.resetFailures(normalizedEmail);
 
-    authLog('password-reset-completed', { userId: targetUser.id, email: normalizedEmail });
+    authLog('password-reset-completed', { userId: targetUserId, email: normalizedEmail });
 
     return sendSuccess(res, { success: true }, 'Password reset successfully. You can now log in with your new password.');
 }));
@@ -373,7 +394,8 @@ router.post('/register', asyncHandler(async (req: any, res: Response) => {
             gender: gender as Gender,
             phone,
             country: matchedCountry.name,
-            referredBy
+            referredBy,
+            taskPreference: req.body.taskPreference || 'all'
         });
 
         // Check if user exists in Auth
@@ -396,7 +418,8 @@ router.post('/register', asyncHandler(async (req: any, res: Response) => {
                 country: validatedData.country || null,
                 role: 'user',
                 referral_code: newReferralCode,
-                referred_by: validatedData.referredBy
+                referred_by: validatedData.referredBy,
+                task_preference: validatedData.taskPreference || 'all'
             }
         });
 
@@ -423,9 +446,15 @@ router.post('/register', asyncHandler(async (req: any, res: Response) => {
                 approval_status: 'pending',
                 verification_status: 'unverified',
                 orientation_complete: false,
+                grammar_test_attempts: 0,
+                grammar_test_passed: false,
                 skill_upgrade_tier: 'member',
                 referral_code: newReferralCode,
                 referred_by: validatedData.referredBy,
+                task_preference: validatedData.taskPreference || 'all',
+                has_project_access: false,
+                quality_rating: 5.0,
+                completion_rate: 100,
                 is_active: true,
                 updated_at: new Date().toISOString()
             }, { onConflict: 'id' })

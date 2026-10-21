@@ -75,6 +75,7 @@ export default function Layout({ children }: LayoutProps) {
     diamond: '💎',
     gold: '🏅',
     vip: '💰',
+    universal: '🌐',
     premium: '👑',
   };
 
@@ -154,9 +155,14 @@ export default function Layout({ children }: LayoutProps) {
                   {user.skill_upgrade_tier || 'Member'}
                 </span>
                 <span className="text-muted-foreground/50">|</span>
-                <div className="flex items-center gap-1 text-amber-500 font-bold">
+                <div className="flex items-center gap-1 text-amber-500 font-bold" title="Admin Quality Score (0-5.0★)">
                   <Star className="w-3.5 h-3.5 fill-amber-500" />
-                  <span>{user.rating ?? 100}%</span>
+                  <span>{user.quality_rating !== undefined && user.quality_rating !== null ? Number(user.quality_rating).toFixed(1) : '5.0'}</span>
+                </div>
+                <span className="text-muted-foreground/50">|</span>
+                <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold" title="Task Completion Rate (0-100%)">
+                  <span className="text-xs">🎯</span>
+                  <span>{user.completion_rate ?? user.rating ?? 100}%</span>
                 </div>
               </div>
             )}
@@ -187,11 +193,20 @@ export default function Layout({ children }: LayoutProps) {
                 <div className="p-3 bg-muted/40 rounded-xl mb-1.5">
                   <p className="font-bold text-sm text-foreground truncate">{user?.name || 'Geek Tasker'}</p>
                   <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
-                  <div className="mt-2 pt-2 border-t border-border/40 flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Tier:</span>
-                    <Badge variant="outline" className="capitalize text-[11px] font-semibold">
-                      {user?.skill_upgrade_tier || 'member'}
-                    </Badge>
+                  <div className="mt-2 pt-2 border-t border-border/40 grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-muted-foreground block text-[10px]">Quality Score:</span>
+                      <span className="font-bold text-amber-500 flex items-center gap-1">
+                        <Star className="w-3 h-3 fill-amber-500" />
+                        {user?.quality_rating !== undefined && user?.quality_rating !== null ? Number(user.quality_rating).toFixed(1) : '5.0'} / 5.0
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[10px]">Success Rate:</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                        {user?.completion_rate ?? user?.rating ?? 100}%
+                      </span>
+                    </div>
                   </div>
                 </div>
 

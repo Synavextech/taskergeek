@@ -31,6 +31,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
         diamond: '💎',
         gold: '🏅',
         vip: '💰',
+        universal: '🌐',
     };
 
     const handleLogout = async () => {
@@ -99,14 +100,22 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                         </div>
                         <div className="space-y-1">
                             <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                                <Star className="h-3 w-3" /> Rating
+                                <Star className="h-3 w-3 text-amber-500 fill-amber-500" /> Quality Rating
+                            </Label>
+                            <span className="text-sm font-bold text-amber-500">
+                                {user.quality_rating !== undefined && user.quality_rating !== null ? Number(user.quality_rating).toFixed(1) : '5.0'} / 5.0 ★
+                            </span>
+                        </div>
+                        <div className="space-y-1 col-span-2">
+                            <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Award className="h-3 w-3 text-emerald-500" /> Completion Rate
                             </Label>
                             <div className="flex items-center gap-1.5">
-                                <span className="text-sm font-bold">{user.rating || 0}%</span>
-                                <div className="flex-1 bg-muted rounded-full h-1.5 max-w-[60px]">
+                                <span className="text-sm font-bold">{user.completion_rate ?? user.rating ?? 100}%</span>
+                                <div className="flex-1 bg-muted rounded-full h-1.5 max-w-[100px]">
                                     <div
-                                        className="bg-yellow-400 h-1.5 rounded-full transition-all duration-500"
-                                        style={{ width: `${user.rating || 0}%` }}
+                                        className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500"
+                                        style={{ width: `${user.completion_rate ?? user.rating ?? 100}%` }}
                                     />
                                 </div>
                             </div>

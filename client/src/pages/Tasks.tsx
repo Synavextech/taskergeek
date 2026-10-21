@@ -37,10 +37,14 @@ import {
   Zap,
   ArrowUpRight,
   TrendingUp,
+  Layers,
+  Play,
+  Briefcase,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { FileUpload } from "@/components/ui/file-upload";
+import { ProjectWorkspace } from "@/components/ProjectWorkspace";
 
 // Helper component for live task countdown timer
 function TaskTimer({ createdAt, onExpire }: { createdAt: string; onExpire?: () => void }) {
@@ -143,7 +147,7 @@ const taskCategories = [
   },
 ];
 
-const tierOrder = ['member', 'silver', 'bronze', 'diamond', 'gold', 'vip', 'premium'];
+const tierOrder = ['member', 'silver', 'bronze', 'diamond', 'gold', 'vip', 'universal', 'premium'];
 
 export default function Tasks() {
   const queryClient = useQueryClient();
@@ -157,8 +161,10 @@ export default function Tasks() {
 
   // Tab & Filter states
   const [activeTab, setActiveTab] = useState<'available' | 'active' | 'review' | 'history'>('available');
+  const [selectedTaskTypeFilter, setSelectedTaskTypeFilter] = useState<'all' | 'project' | 'standard'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeProjectTask, setActiveProjectTask] = useState<UserTask | null>(null);
 
   // Submission Dialog State
   const [isSubmissionOpen, setIsSubmissionOpen] = useState(false);
@@ -380,6 +386,11 @@ export default function Tasks() {
 
   const isTaskLocked = (task: Task) => {
     if (isInOrientation) return false;
+    // If it's an hourly project, verify project qualification or universal tier
+    if (task.task_type === 'project') {
+      const isProjectQualified = user?.has_project_access || user?.skill_upgrade_tier === 'universal' || user?.skill_upgrade_tier === 'premium';
+      if (!isProjectQualified) return true;
+    }
     if (!user?.skill_upgrade_tier) return true;
 
     const userTierIndex = tierOrder.indexOf(user.skill_upgrade_tier);
@@ -387,9 +398,14 @@ export default function Tasks() {
     return userTierIndex < minTierIndex;
   };
 
-  // Filter tasks by active category and search input
+  // Filter tasks by active type, category and search input
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
+      const matchesType =
+        selectedTaskTypeFilter === 'all' ||
+        (selectedTaskTypeFilter === 'project' && task.task_type === 'project') ||
+        (selectedTaskTypeFilter === 'standard' && (task.task_type === 'standard' || !task.task_type));
+
       const matchesCategory = selectedCategory === 'all' || task.category === selectedCategory;
       const matchesSearch =
         searchQuery.trim() === "" ||
@@ -397,9 +413,9 @@ export default function Tasks() {
         task.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
         String(task.id).includes(searchQuery);
 
-      return matchesCategory && matchesSearch;
+      return matchesType && matchesCategory && matchesSearch;
     });
-  }, [tasks, selectedCategory, searchQuery]);
+  }, [tasks, selectedTaskTypeFilter, selectedCategory, searchQuery]);
 
   // Derived counts for tabs
   const activeTasks = useMemo(
@@ -423,6 +439,30 @@ export default function Tasks() {
     };
   };
 
+  if (activeProjectTask) {
+    return (
+      <div className="space-y-4 py-4 animate-fade-in pb-12">
+        <div className="flex items-center justify-between pb-3 border-b">
+          <Button variant="ghost" size="sm" onClick={() => setActiveProjectTask(null)}>
+            ← Back to Tasks Marketplace
+          </Button>
+          <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+            Active Project Workspace
+          </Badge>
+        </div>
+        <ProjectWorkspace
+          userTask={activeProjectTask}
+          onSubmitted={() => {
+            setActiveProjectTask(null);
+            queryClient.invalidateQueries({ queryKey: ['/api/tasks/user-tasks'] });
+            setActiveTab('review');
+          }}
+          onCancel={() => setActiveProjectTask(null)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 sm:space-y-8 animate-fade-in pb-12">
       {/* Outlier-style Hero Banner & Metrics Header */}
@@ -440,7 +480,7 @@ export default function Tasks() {
 
               {user?.skill_upgrade_tier && (
                 <Badge variant="outline" className="text-xs font-semibold uppercase tracking-wider border-border/80">
-                  Level: {user.skill_upgrade_tier}
+                  Level: {user?.skill_upgrade_tier}
                 </Badge>
               )}
             </div>
@@ -557,8 +597,47 @@ export default function Tasks() {
       {/* TAB 1: AVAILABLE OPPORTUNITIES (Outlier Grid) */}
       {activeTab === 'available' && (
         <div className="space-y-6">
-          {/* Controls: Dropdown Selection + Category Quick Chips + Live Search */}
+          {/* Controls: Task Type Switcher + Dropdown Selection + Category Quick Chips + Live Search */}
           <div className="space-y-3">
+            {/* Task Type Switcher: All / Hourly Projects / Standard Micro-Tasks */}
+            <div className="flex flex-wrap items-center gap-2 p-1 bg-muted/60 rounded-2xl w-fit border border-border/40">
+              <button
+                type="button"
+                onClick={() => setSelectedTaskTypeFilter('all')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  selectedTaskTypeFilter === 'all'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                All Opportunities
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedTaskTypeFilter('project')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                  selectedTaskTypeFilter === 'project'
+                    ? 'bg-card text-primary shadow-sm font-bold'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5 text-primary" />
+                Hourly Projects
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedTaskTypeFilter('standard')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                  selectedTaskTypeFilter === 'standard'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Briefcase className="w-3.5 h-3.5" />
+                Standard Tasks
+              </button>
+            </div>
+
             <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
               {/* Task Category Discipline Dropdown Selection */}
               <div className="w-full sm:w-80">
@@ -658,14 +737,27 @@ export default function Tasks() {
                     {/* Top Row: Category Pill & Compensation Callout */}
                     <div className="space-y-4">
                       <div className="flex items-center justify-between gap-2">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${categoryMeta.badgeClass}`}>
-                          <span>{categoryMeta.icon}</span>
-                          <span>{categoryMeta.name}</span>
-                        </span>
+                        {task.task_type === 'project' ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border bg-primary/15 text-primary border-primary/30">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>Hourly Project</span>
+                          </span>
+                        ) : (
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${categoryMeta.badgeClass}`}>
+                            <span>{categoryMeta.icon}</span>
+                            <span>{categoryMeta.name}</span>
+                          </span>
+                        )}
 
-                        <div className="flex items-center gap-1 bg-success/15 border border-success/30 text-success font-black text-sm px-3 py-1 rounded-full">
-                          <span>${parseFloat(String(task.reward)).toFixed(2)}</span>
-                        </div>
+                        {task.task_type === 'project' ? (
+                          <div className="flex items-center gap-1 bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-black text-sm px-3 py-1 rounded-full">
+                            <span>${parseFloat(String(task.hourly_rate || '15')).toFixed(2)}/hr</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 bg-success/15 border border-success/30 text-success font-black text-sm px-3 py-1 rounded-full">
+                            <span>${parseFloat(String(task.reward)).toFixed(2)}</span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Title & Brief */}
@@ -677,6 +769,18 @@ export default function Tasks() {
                           {task.description}
                         </p>
                       </div>
+
+                      {/* Capacity badge for projects */}
+                      {task.task_type === 'project' && (
+                        <div className="flex items-center justify-between text-xs font-medium px-3 py-1.5 bg-muted/40 rounded-xl border">
+                          <span className="text-muted-foreground flex items-center gap-1">
+                            <Layers className="w-3.5 h-3.5 text-primary" /> Slots:
+                          </span>
+                          <span className="font-bold text-foreground">
+                            🔥 {task.spotsRemaining !== undefined ? task.spotsRemaining : Math.max(0, (task.max_participants || 1) - (task.current_participants || 0))} remaining
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Metadata & Actions */}
@@ -684,7 +788,7 @@ export default function Tasks() {
                       <div className="flex items-center justify-between text-xs text-muted-foreground font-medium">
                         <span className="flex items-center gap-1">
                           <Clock className="w-3.5 h-3.5 text-muted-foreground/70" />
-                          <span>~15-30 mins</span>
+                          <span>~{task.estimated_duration_minutes || (task.task_type === 'project' ? 60 : 25)} mins</span>
                         </span>
 
                         <span className="flex items-center gap-1">
@@ -699,11 +803,15 @@ export default function Tasks() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setLocation(`/skill-upgrade?tier=${task.min_tier}`)}
+                            onClick={() => setLocation(task.task_type === 'project' ? '/skill-upgrade?project=true' : `/skill-upgrade?tier=${task.min_tier}`)}
                             className="w-full rounded-xl text-xs gap-1.5 border-accent/40 text-accent hover:bg-accent/10 hover:border-accent font-semibold transition-all shadow-sm"
                           >
                             <LucideLock className="w-3.5 h-3.5" />
-                            <span>Unlock with {task.min_tier?.toUpperCase()} Upgrade</span>
+                            <span>
+                              {task.task_type === 'project'
+                                ? "Unlock Hourly Projects (Skill Upgrade)"
+                                : `Unlock with ${task.min_tier?.toUpperCase()} Upgrade`}
+                            </span>
                             <ArrowUpRight className="w-3.5 h-3.5 ml-auto" />
                           </Button>
                         </div>
@@ -725,10 +833,20 @@ export default function Tasks() {
                               setSelectedTask(task);
                               handleTaskAction();
                             }}
-                            disabled={claimTaskMutation.isPending || bidTaskMutation.isPending}
+                            disabled={
+                              claimTaskMutation.isPending ||
+                              bidTaskMutation.isPending ||
+                              (task.spotsRemaining !== undefined && task.spotsRemaining <= 0)
+                            }
                             className="flex-1 rounded-xl text-xs font-bold bg-accent hover:bg-accent/90 text-accent-foreground shadow-sm"
                           >
-                            {isBidCategory ? "Apply / Bid" : "Claim Task"}
+                            {task.spotsRemaining !== undefined && task.spotsRemaining <= 0
+                              ? "Spots Full"
+                              : isBidCategory
+                              ? "Apply / Bid"
+                              : task.task_type === 'project'
+                              ? "Start Project"
+                              : "Claim Task"}
                             <ArrowUpRight className="w-3.5 h-3.5 ml-1" />
                           </Button>
                         </div>
@@ -785,6 +903,19 @@ export default function Tasks() {
                   </CardHeader>
 
                   <CardContent className="p-6 pt-4 space-y-4 flex-1 flex flex-col justify-between">
+                    {/* Project Working Time & Accrued Earnings Callout */}
+                    {userTask.task?.task_type === 'project' && (
+                      <div className="flex items-center justify-between text-xs font-mono p-3 bg-muted/40 rounded-2xl border">
+                        <span className="text-muted-foreground flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-primary" />
+                          Tracked: {Math.floor((userTask.time_spent_seconds || 0) / 60)} mins
+                        </span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                          Accrued: ${(parseFloat(String(userTask.accrued_earnings || '0')) || ((userTask.time_spent_seconds || 0) / 3600 * parseFloat(String(userTask.hourly_rate || '15')))).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+
                     {/* Feedback if revision requested */}
                     {userTask.status === 'revision_requested' && (
                       <div className="p-3.5 bg-warning/10 border border-warning/25 rounded-2xl text-xs space-y-2">
@@ -817,14 +948,25 @@ export default function Tasks() {
                           Cancel
                         </Button>
 
-                        <Button
-                          size="sm"
-                          onClick={() => handleOpenSubmission(userTask)}
-                          className="rounded-xl text-xs font-bold bg-accent hover:bg-accent/90 text-accent-foreground"
-                        >
-                          <Send className="w-3.5 h-3.5 mr-1" />
-                          Submit Work
-                        </Button>
+                        {userTask.task?.task_type === 'project' ? (
+                          <Button
+                            size="sm"
+                            onClick={() => setActiveProjectTask(userTask)}
+                            className="rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-1.5 shadow-sm"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-current" />
+                            Open Workspace
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => handleOpenSubmission(userTask)}
+                            className="rounded-xl text-xs font-bold bg-accent hover:bg-accent/90 text-accent-foreground"
+                          >
+                            <Send className="w-3.5 h-3.5 mr-1" />
+                            Submit Work
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -932,56 +1074,60 @@ export default function Tasks() {
       )}
 
       {/* Task Briefing / Details Dialog */}
-      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+      <Dialog open={isDetailsOpen && !!selectedTask} onOpenChange={setIsDetailsOpen}>
         <DialogContent className="max-w-xl rounded-3xl p-6 sm:p-8">
-          <DialogHeader className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <Badge variant="outline" className="text-xs uppercase font-semibold">
-                {selectedTask?.category || 'Task'}
-              </Badge>
-              {selectedTask?.reward && (
-                <span className="text-base font-black text-success bg-success/10 px-3 py-1 rounded-full border border-success/20">
-                  ${parseFloat(String(selectedTask.reward)).toFixed(2)}
-                </span>
-              )}
-            </div>
-            <DialogTitle className="text-xl font-black text-foreground">
-              {selectedTask?.title}
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-5 my-3 text-sm text-foreground/90">
-            <div>
-              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Project Overview</Label>
-              <p className="mt-1 leading-relaxed bg-muted/30 p-3.5 rounded-2xl border border-border/40">
-                {selectedTask?.description}
-              </p>
-            </div>
-
-            {selectedTask?.instructions && (
-              <div>
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Instructions & Deliverables</Label>
-                <div className="mt-1 p-3.5 bg-card border border-border/60 rounded-2xl text-xs space-y-2 leading-relaxed">
-                  <p>{selectedTask.instructions}</p>
+          {selectedTask && (
+            <>
+              <DialogHeader className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <Badge variant="outline" className="text-xs uppercase font-semibold">
+                    {selectedTask.category || 'Task'}
+                  </Badge>
+                  {selectedTask.reward && (
+                    <span className="text-base font-black text-success bg-success/10 px-3 py-1 rounded-full border border-success/20">
+                      ${parseFloat(String(selectedTask.reward)).toFixed(2)}
+                    </span>
+                  )}
                 </div>
-              </div>
-            )}
-          </div>
+                <DialogTitle className="text-xl font-black text-foreground">
+                  {selectedTask.title}
+                </DialogTitle>
+              </DialogHeader>
 
-          <DialogFooter className="flex flex-row justify-end gap-3 mt-4">
-            <Button variant="outline" onClick={() => setIsDetailsOpen(false)} className="rounded-xl">
-              Close
-            </Button>
-            {selectedTask && !isTaskLocked(selectedTask) && (
-              <Button
-                onClick={handleTaskAction}
-                disabled={claimTaskMutation.isPending || bidTaskMutation.isPending}
-                className="rounded-xl font-bold bg-accent hover:bg-accent/90 text-accent-foreground shadow-sm"
-              >
-                {['testing', 'ai'].includes(selectedTask.category) ? "Submit Bid / Apply" : "Claim & Begin Task"}
-              </Button>
-            )}
-          </DialogFooter>
+              <div className="space-y-5 my-3 text-sm text-foreground/90">
+                <div>
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Project Overview</Label>
+                  <p className="mt-1 leading-relaxed bg-muted/30 p-3.5 rounded-2xl border border-border/40">
+                    {selectedTask.description}
+                  </p>
+                </div>
+
+                {selectedTask.instructions && (
+                  <div>
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Instructions & Deliverables</Label>
+                    <div className="mt-1 p-3.5 bg-card border border-border/60 rounded-2xl text-xs space-y-2 leading-relaxed">
+                      <p>{selectedTask.instructions}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter className="flex flex-row justify-end gap-3 mt-4">
+                <Button variant="outline" onClick={() => setIsDetailsOpen(false)} className="rounded-xl">
+                  Close
+                </Button>
+                {!isTaskLocked(selectedTask) && (
+                  <Button
+                    onClick={handleTaskAction}
+                    disabled={claimTaskMutation.isPending || bidTaskMutation.isPending}
+                    className="rounded-xl font-bold bg-accent hover:bg-accent/90 text-accent-foreground shadow-sm"
+                  >
+                    {['testing', 'ai'].includes(selectedTask.category) ? "Submit Bid / Apply" : "Claim & Begin Task"}
+                  </Button>
+                )}
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 

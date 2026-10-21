@@ -90,6 +90,7 @@ export default function Home() {
     diamond: "💎",
     gold: "🏅",
     vip: "💰",
+    universal: "🌐",
     premium: "👑",
   };
 
@@ -182,7 +183,7 @@ export default function Home() {
       </Card>
 
       {/* Performance KPIs & Metrics Strip */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <Card className="rounded-3xl border-border/60 p-5 bg-card shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-0 space-y-2">
             <div className="flex items-center justify-between text-muted-foreground">
@@ -200,7 +201,7 @@ export default function Home() {
           <CardContent className="p-0 space-y-2">
             <div className="flex items-center justify-between text-muted-foreground">
               <span className="text-xs font-semibold uppercase tracking-wider">Tasks Done</span>
-              <span className="text-lg"></span>
+              <span className="text-lg">✅</span>
             </div>
             <div className="text-2xl sm:text-3xl font-black text-accent">
               {userStats?.tasks_completed || 0}
@@ -212,21 +213,35 @@ export default function Home() {
         <Card className="rounded-3xl border-border/60 p-5 bg-card shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-0 space-y-2">
             <div className="flex items-center justify-between text-muted-foreground">
-              <span className="text-xs font-semibold uppercase tracking-wider">Rating Score</span>
-              <span className="text-lg"></span>
+              <span className="text-xs font-semibold uppercase tracking-wider">Quality Score</span>
+              <span className="text-lg">⭐</span>
             </div>
             <div className="text-2xl sm:text-3xl font-black text-amber-500">
-              {userStats?.rating ?? user?.rating ?? 100}%
+              {user?.quality_rating !== undefined && user?.quality_rating !== null ? Number(user.quality_rating).toFixed(1) : '5.0'}
+              <span className="text-xs text-muted-foreground font-normal ml-1">/ 5.0</span>
             </div>
-            <p className="text-[11px] text-muted-foreground">Quality acceptance rate</p>
+            <p className="text-[11px] text-muted-foreground">Admin task evaluation</p>
           </CardContent>
         </Card>
 
         <Card className="rounded-3xl border-border/60 p-5 bg-card shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-0 space-y-2">
             <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-xs font-semibold uppercase tracking-wider">Success Rate</span>
+              <span className="text-lg">🎯</span>
+            </div>
+            <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">
+              {user?.completion_rate ?? userStats?.rating ?? user?.rating ?? 100}%
+            </div>
+            <p className="text-[11px] text-muted-foreground">Completion reliability</p>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-3xl border-border/60 p-5 bg-card shadow-sm hover:shadow-md transition-shadow col-span-2 sm:col-span-1">
+          <CardContent className="p-0 space-y-2">
+            <div className="flex items-center justify-between text-muted-foreground">
               <span className="text-xs font-semibold uppercase tracking-wider">Referral Squad</span>
-              <span className="text-lg"></span>
+              <span className="text-lg">👥</span>
             </div>
             <div className="text-2xl sm:text-3xl font-black text-foreground">
               {referralData?.count || 0}
@@ -263,6 +278,7 @@ export default function Home() {
             {
               id: "main",
               title: "Core Verification",
+              icon: "📋",
               minTier: "member",
               payout: "$0.25 - $2.50",
               badgeClass: "bg-teal-500/15 text-teal-600 dark:text-teal-400 border-teal-500/30",
@@ -271,6 +287,7 @@ export default function Home() {
             {
               id: "social",
               title: "Social Engagement",
+              icon: "👥",
               minTier: "silver",
               payout: "$0.30 - $3.50",
               badgeClass: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30",
@@ -279,6 +296,7 @@ export default function Home() {
             {
               id: "app",
               title: "Application Operations",
+              icon: "📱",
               minTier: "bronze",
               payout: "$0.35 - $5.00",
               badgeClass: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/30",
@@ -287,6 +305,7 @@ export default function Home() {
             {
               id: "surveys",
               title: "Surveys & Polls",
+              icon: "📊",
               minTier: "diamond",
               payout: "$5.00 - $18.00",
               badgeClass: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
@@ -295,6 +314,7 @@ export default function Home() {
             {
               id: "testing",
               title: "App & Web Testing",
+              icon: "⚙️",
               minTier: "gold",
               payout: "$15.00 - $50.00",
               badgeClass: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30",
@@ -303,6 +323,7 @@ export default function Home() {
             {
               id: "ai",
               title: "AI Training & Alignment",
+              icon: "🤖",
               minTier: "vip",
               payout: "$25.00 - $75.00",
               badgeClass: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30",

@@ -1,5 +1,8 @@
 
-import { type User, type Task, type Withdrawal, type UserTask, type TaskCategory, type SkillUpgradeTier } from "@shared/types";
+import {
+  type User, type Task, type Withdrawal, type UserTask, type TaskCategory, type SkillUpgradeTier,
+  type ProjectSection, type ProjectSubsection, type ProjectTaskItem
+} from "@shared/types";
 import { useState } from "react";
 interface Stats {
   totalUsers: number;
@@ -21,7 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -33,7 +36,7 @@ import { insertTaskSchema, type InsertTask } from "@shared/types";
 import {
   Users, DollarSign, ClipboardList, UserCheck,
   MoreVertical, Edit, Shield, Ban, UserX, CheckCircle, Bell, ExternalLink, Gift, UserPlus, Lock as LucideLock, FileUp,
-  FileText
+  FileText, Star, Plus, Trash2, Clock, Layers
 } from "lucide-react";
 import { FileUpload } from "@/components/ui/file-upload";
 import {
@@ -145,19 +148,139 @@ export default function Admin() {
     onError: () => toast({ title: "Error", description: "Failed to update settings", variant: "destructive" })
   });
 
+  // Task Approval & Rejection Modal States
+  const [approvingTask, setApprovingTask] = useState<any | null>(null);
+  const [approvalQualityRating, setApprovalQualityRating] = useState<number>(5);
+
+  const [rejectingTask, setRejectingTask] = useState<any | null>(null);
+  const [rejectionQualityRating, setRejectionQualityRating] = useState<number>(1);
+  const [rejectionReason, setRejectionReason] = useState<string>("");
+
+  // Task Creation States for Project-based Tasks
+  const [taskTypeState, setTaskTypeState] = useState<'standard' | 'project'>('standard');
+  const [projectSections, setProjectSections] = useState<ProjectSection[]>([
+    {
+      id: "sec-1",
+      title: "Section 1: Initial Discovery & Verification",
+      description: "Perform comprehensive initial checks and data inspection",
+      subsections: [
+        {
+          id: "subsec-1-1",
+          title: "Subsection 1.1: Core Checks",
+          description: "Follow the core inspection parameters",
+          tasks: [
+            {
+              id: "task-1-1-1",
+              title: "Deliverable Step 1",
+              description: "Execute the benchmark inspection and record details.",
+              type: "text",
+              estimated_duration_minutes: 15,
+            }
+          ]
+        }
+      ]
+    }
+  ]);
+
+  const addProjectSection = () => {
+    const newSecId = `sec-${Date.now()}`;
+    setProjectSections(prev => [
+      ...prev,
+      {
+        id: newSecId,
+        title: `Section ${prev.length + 1}: Project Phase`,
+        description: "",
+        subsections: [
+          {
+            id: `subsec-${Date.now()}`,
+            title: "Subsection 1",
+            tasks: [
+              {
+                id: `task-${Date.now()}`,
+                title: "Subtask 1",
+                description: "",
+                type: "text",
+                estimated_duration_minutes: 15
+              }
+            ]
+          }
+        ]
+      }
+    ]);
+  };
+
+  const addProjectSubsection = (secId: string) => {
+    setProjectSections(prev => prev.map(sec => {
+      if (sec.id !== secId) return sec;
+      return {
+        ...sec,
+        subsections: [
+          ...sec.subsections,
+          {
+            id: `subsec-${Date.now()}`,
+            title: `Subsection ${sec.subsections.length + 1}`,
+            tasks: [
+              {
+                id: `task-${Date.now()}`,
+                title: "Subtask 1",
+                description: "",
+                type: "text",
+                estimated_duration_minutes: 15
+              }
+            ]
+          }
+        ]
+      };
+    }));
+  };
+
+  const addProjectTaskItem = (secId: string, subId: string) => {
+    setProjectSections(prev => prev.map(sec => {
+      if (sec.id !== secId) return sec;
+      return {
+        ...sec,
+        subsections: sec.subsections.map(sub => {
+          if (sub.id !== subId) return sub;
+          return {
+            ...sub,
+            tasks: [
+              ...sub.tasks,
+              {
+                id: `task-${Date.now()}`,
+                title: `Task ${sub.tasks.length + 1}`,
+                description: "",
+                type: "text",
+                estimated_duration_minutes: 15
+              }
+            ]
+          };
+        })
+      };
+    }));
+  };
+
+  const removeProjectSection = (secId: string) => {
+    setProjectSections(prev => prev.filter(s => s.id !== secId));
+  };
+
   const taskForm = useForm<InsertTask>({
     resolver: zodResolver(insertTaskSchema),
     defaultValues: {
       title: "",
       description: "",
       category: "main",
+      taskType: "standard",
       url: "",
       reward: "0",
+      hourlyRate: "0",
+      maxParticipants: 1,
+      estimatedDurationMinutes: 30,
       minTier: "member",
       isActive: true,
       isOrientation: false,
     },
   });
+
   const createTaskMutation = useMutation({
     mutationFn: async (data: InsertTask) => {
       const response = await apiRequest("POST", "/api/admin/tasks", data);
@@ -170,6 +293,7 @@ export default function Admin() {
       });
       taskForm.reset();
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/tasks'] });
     },
     onError: () => {
       toast({
@@ -179,9 +303,10 @@ export default function Admin() {
       });
     },
   });
+
   const approveTaskMutation = useMutation({
-    mutationFn: async (taskId: string) => {
-      const response = await apiRequest("PATCH", `/api/admin/user-tasks/${taskId}/approve`);
+    mutationFn: async ({ taskId, quality_rating }: { taskId: string; quality_rating?: number }) => {
+      const response = await apiRequest("PATCH", `/api/admin/user-tasks/${taskId}/approve`, { quality_rating });
       return response.json();
     },
     onSuccess: (data) => {
@@ -189,26 +314,51 @@ export default function Admin() {
         title: data.success ? "Success" : "Task approved",
         description: data.message || "Task has been approved and earnings added",
       });
+      setApprovingTask(null);
       queryClient.invalidateQueries({ queryKey: ['/api/admin/user-tasks/pending'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/user-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
     },
   });
+
   const rejectTaskMutation = useMutation({
-    mutationFn: async ({ taskId, reason }: { taskId: string; reason: string }) => {
-      const response = await apiRequest("PATCH", `/api/admin/user-tasks/${taskId}/reject`, { reason });
+    mutationFn: async ({ taskId, reason, quality_rating }: { taskId: string; reason: string; quality_rating?: number }) => {
+      const response = await apiRequest("PATCH", `/api/admin/user-tasks/${taskId}/reject`, { reason, quality_rating });
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Task rejected",
+        description: data?.message || "Task has been rejected with reason and quality score",
+      });
+      setRejectingTask(null);
+      setRejectionReason("");
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/user-tasks/pending'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/user-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+    },
+  });
+
+  const expandSlotsMutation = useMutation({
+    mutationFn: async ({ id, currentMax }: { id: string; currentMax: number }) => {
+      const response = await apiRequest("PATCH", `/api/admin/tasks/${id}`, {
+        max_participants: currentMax + 5,
+        is_active: true
+      });
       return response.json();
     },
     onSuccess: () => {
       toast({
-        title: "Task rejected",
-        description: "Task has been rejected with reason",
+        title: "Slots Expanded",
+        description: "5 additional participant slots added and project reactivated.",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/user-tasks/pending'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks/user-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/tasks'] });
     },
   });
+
   const updateWithdrawalMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: any }) => {
       const response = await apiRequest("PATCH", `/api/admin/withdrawals/${id}`, updates);
@@ -471,6 +621,10 @@ export default function Admin() {
     // Ensure empty URL is explicitly sent as null if not empty or valid
     const processedData = {
       ...data,
+      taskType: taskTypeState,
+      hourlyRate: taskTypeState === 'project' ? (data.hourlyRate || "15.00") : "0",
+      maxParticipants: taskTypeState === 'project' ? (Number(data.maxParticipants) || 1) : (Number(data.maxParticipants) || 100),
+      projectStructure: taskTypeState === 'project' ? projectSections : null,
       url: data.url?.trim() === "" ? null : data.url
     };
     createTaskMutation.mutate(processedData as InsertTask);
@@ -480,11 +634,11 @@ export default function Admin() {
     updateTaskMutation.mutate({ id, updates: data });
   };
 
-  const handleTaskApproval = (taskId: string, approve: boolean, reason?: string) => {
+  const handleTaskApproval = (taskId: string, approve: boolean, reason?: string, quality_rating?: number) => {
     if (approve) {
-      approveTaskMutation.mutate(taskId);
-    } else if (reason) {
-      rejectTaskMutation.mutate({ taskId, reason });
+      approveTaskMutation.mutate({ taskId, quality_rating: quality_rating ?? 5 });
+    } else {
+      rejectTaskMutation.mutate({ taskId, reason: reason || "Task submission rejected", quality_rating: quality_rating ?? 1 });
     }
   };
   const handleWithdrawalUpdate = (id: string, status: string, adminNotes?: string) => {
@@ -500,6 +654,7 @@ export default function Admin() {
     diamond: '💎',
     gold: '🏅',
     vip: '💰',
+    universal: '🌐',
   };
 
   return (
@@ -837,23 +992,59 @@ export default function Admin() {
 
           <TabsContent value="tasks" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold">Task Management</h2>
+              <div>
+                <h2 className="text-xl font-semibold">Task Management</h2>
+                <p className="text-xs text-muted-foreground">Manage standard micro-tasks and multi-section hourly projects</p>
+              </div>
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button>Create New Task</Button>
+                  <Button className="flex items-center gap-1.5">
+                    <Plus className="h-4 w-4" /> Create New Task
+                  </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl">
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
-                    <DialogTitle>Create New Task</DialogTitle>
+                    <DialogTitle>Create New Task / Project</DialogTitle>
                   </DialogHeader>
+
+                  {/* Task Type Switcher */}
+                  <div className="grid grid-cols-2 gap-2 p-1 bg-muted rounded-lg my-2">
+                    <Button
+                      type="button"
+                      variant={taskTypeState === 'standard' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => {
+                        setTaskTypeState('standard');
+                        taskForm.setValue('taskType', 'standard');
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <ClipboardList className="h-4 w-4" />
+                      Standard Task (Fixed Reward)
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={taskTypeState === 'project' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => {
+                        setTaskTypeState('project');
+                        taskForm.setValue('taskType', 'project');
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <Clock className="h-4 w-4" />
+                      Project Task (Hourly Rate)
+                    </Button>
+                  </div>
+
                   <form onSubmit={taskForm.handleSubmit(onCreateTask)} className="space-y-4">
                     <div>
-                      <Label htmlFor="title">Task Title</Label>
-                      <Input id="title" {...taskForm.register("title")} />
+                      <Label htmlFor="title">{taskTypeState === 'project' ? 'Project Title' : 'Task Title'}</Label>
+                      <Input id="title" placeholder={taskTypeState === 'project' ? 'e.g. End-to-End Application Quality Audit' : 'e.g. Test Checkout Flow'} {...taskForm.register("title")} />
                     </div>
                     <div>
-                      <Label htmlFor="description">Description</Label>
-                      <Textarea id="description" {...taskForm.register("description")} />
+                      <Label htmlFor="description">Overview & Scope</Label>
+                      <Textarea id="description" rows={3} placeholder="Describe the objectives and requirements" {...taskForm.register("description")} />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -912,17 +1103,202 @@ export default function Admin() {
                         </p>
                       </div>
                     </div>
+
+                    {taskTypeState === 'standard' ? (
+                      <div>
+                        <Label htmlFor="reward">Fixed Reward ($ USD)</Label>
+                        <Input
+                          id="reward"
+                          type="number"
+                          step="0.01"
+                          placeholder="5.00"
+                          {...taskForm.register("reward")}
+                        />
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-3 p-3 bg-muted/40 rounded-lg border border-dashed">
+                        <div>
+                          <Label htmlFor="hourlyRate">Hourly Rate ($ / hr)</Label>
+                          <Input
+                            id="hourlyRate"
+                            type="number"
+                            step="0.01"
+                            placeholder="18.50"
+                            {...taskForm.register("hourlyRate")}
+                          />
+                          <p className="text-[10px] text-muted-foreground mt-0.5">Accrues dynamically as user works.</p>
+                        </div>
+                        <div>
+                          <Label htmlFor="maxParticipants">Participant Limit</Label>
+                          <Input
+                            id="maxParticipants"
+                            type="number"
+                            placeholder="10"
+                            {...taskForm.register("maxParticipants")}
+                          />
+                          <p className="text-[10px] text-muted-foreground mt-0.5">Auto-hides project when full.</p>
+                        </div>
+                        <div>
+                          <Label htmlFor="estimatedDurationMinutes">Est. Duration (Mins)</Label>
+                          <Input
+                            id="estimatedDurationMinutes"
+                            type="number"
+                            placeholder="60"
+                            {...taskForm.register("estimatedDurationMinutes")}
+                          />
+                          <p className="text-[10px] text-muted-foreground mt-0.5">Benchmark project length.</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Project Section & Subsection Hierarchy Builder */}
+                    {taskTypeState === 'project' && (
+                      <div className="space-y-4 pt-2 border-t">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="text-sm font-semibold flex items-center gap-1.5">
+                              <Layers className="h-4 w-4 text-primary" /> Project Sections & Questions
+                            </h4>
+                            <p className="text-xs text-muted-foreground">Define sections, subsections, and questions/tasks with estimated durations.</p>
+                          </div>
+                          <Button type="button" size="sm" variant="outline" onClick={addProjectSection}>
+                            <Plus className="h-3.5 w-3.5 mr-1" /> Add Section
+                          </Button>
+                        </div>
+
+                        <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                          {projectSections.map((sec, secIdx) => (
+                            <div key={sec.id} className="border rounded-lg p-3 bg-card space-y-3 shadow-sm">
+                              <div className="flex items-center justify-between gap-2">
+                                <Input
+                                  value={sec.title}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setProjectSections(prev => prev.map(s => s.id === sec.id ? { ...s, title: val } : s));
+                                  }}
+                                  placeholder={`Section ${secIdx + 1} Title`}
+                                  className="h-8 font-medium text-sm"
+                                />
+                                {projectSections.length > 1 && (
+                                  <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => removeProjectSection(sec.id)}>
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+
+                              {/* Subsections */}
+                              <div className="pl-3 border-l-2 border-primary/20 space-y-2">
+                                {sec.subsections.map((subsec, subIdx) => (
+                                  <div key={subsec.id} className="p-2.5 rounded bg-muted/30 border space-y-2">
+                                    <Input
+                                      value={subsec.title}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setProjectSections(prev => prev.map(s => s.id === sec.id ? {
+                                          ...s,
+                                          subsections: s.subsections.map(sub => sub.id === subsec.id ? { ...sub, title: val } : sub)
+                                        } : s));
+                                      }}
+                                      placeholder={`Subsection ${subIdx + 1} Title`}
+                                      className="h-7 text-xs font-semibold"
+                                    />
+
+                                    {/* Questions / Subtasks */}
+                                    <div className="space-y-1.5">
+                                      {subsec.tasks.map((taskItem, tIdx) => (
+                                        <div key={taskItem.id} className="grid grid-cols-12 gap-1.5 items-center bg-background/80 p-1.5 rounded border text-xs">
+                                          <div className="col-span-6">
+                                            <Input
+                                              value={taskItem.title}
+                                              onChange={(e) => {
+                                                const val = e.target.value;
+                                                setProjectSections(prev => prev.map(s => s.id === sec.id ? {
+                                                  ...s,
+                                                  subsections: s.subsections.map(sub => sub.id === subsec.id ? {
+                                                    ...sub,
+                                                    tasks: sub.tasks.map(t => t.id === taskItem.id ? { ...t, title: val } : t)
+                                                  } : sub)
+                                                } : s));
+                                              }}
+                                              placeholder={`Task / Question ${tIdx + 1}`}
+                                              className="h-7 text-xs"
+                                            />
+                                          </div>
+                                          <div className="col-span-3">
+                                            <Input
+                                              type="number"
+                                              value={taskItem.estimated_duration_minutes || 15}
+                                              onChange={(e) => {
+                                                const val = Number(e.target.value);
+                                                setProjectSections(prev => prev.map(s => s.id === sec.id ? {
+                                                  ...s,
+                                                  subsections: s.subsections.map(sub => sub.id === subsec.id ? {
+                                                    ...sub,
+                                                    tasks: sub.tasks.map(t => t.id === taskItem.id ? { ...t, estimated_duration_minutes: val } : t)
+                                                  } : sub)
+                                                } : s));
+                                              }}
+                                              placeholder="Minutes"
+                                              className="h-7 text-xs"
+                                            />
+                                          </div>
+                                          <div className="col-span-3">
+                                            <Select
+                                              value={taskItem.type || 'text'}
+                                              onValueChange={(val: any) => {
+                                                setProjectSections(prev => prev.map(s => s.id === sec.id ? {
+                                                  ...s,
+                                                  subsections: s.subsections.map(sub => sub.id === subsec.id ? {
+                                                    ...sub,
+                                                    tasks: sub.tasks.map(t => t.id === taskItem.id ? { ...t, type: val } : t)
+                                                  } : sub)
+                                                } : s));
+                                              }}
+                                            >
+                                              <SelectTrigger className="h-7 text-xs">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="text">Short Text</SelectItem>
+                                                <SelectItem value="textarea">Paragraph</SelectItem>
+                                                <SelectItem value="file">File Upload</SelectItem>
+                                                <SelectItem value="url">Link / URL</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                        </div>
+                                      ))}
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-6 text-[11px] text-primary"
+                                        onClick={() => addProjectTaskItem(sec.id, subsec.id)}
+                                      >
+                                        <Plus className="h-3 w-3 mr-1" /> Add Question/Subtask
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 text-[11px] text-muted-foreground"
+                                  onClick={() => addProjectSubsection(sec.id)}
+                                >
+                                  <Plus className="h-3 w-3 mr-1" /> Add Subsection
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     <div>
-                      <Label htmlFor="reward">Reward ($ Usd)</Label>
-                      <Input
-                        id="reward"
-                        type="number"
-                        step="0.01"
-                        {...taskForm.register("reward")}
-                      />
-                    </div>
-                    <div>
-                      <Input id="url" type="url" {...taskForm.register("url")} />
+                      <Input id="url" placeholder="Resource link (optional)" type="url" {...taskForm.register("url")} />
                     </div>
                     <div>
                       <Label>Instruction Attachments</Label>
@@ -954,7 +1330,7 @@ export default function Admin() {
                       <Label htmlFor="create-isOrientation">Orientation Benchmark Task</Label>
                     </div>
                     <Button type="submit" className="w-full" disabled={createTaskMutation.isPending}>
-                      {createTaskMutation.isPending ? "Creating..." : "Create Task"}
+                      {createTaskMutation.isPending ? "Creating..." : taskTypeState === 'project' ? "Publish Project Task" : "Create Task"}
                     </Button>
                   </form>
                 </DialogContent>
@@ -963,15 +1339,16 @@ export default function Admin() {
 
             <Card>
               <CardHeader>
-                <CardTitle>All Tasks</CardTitle>
+                <CardTitle>All Tasks & Projects</CardTitle>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Title</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Reward</TableHead>
+                      <TableHead>Type & Category</TableHead>
+                      <TableHead>Reward / Rate</TableHead>
+                      <TableHead>Slots / Capacity</TableHead>
                       <TableHead>Min Tier</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Actions</TableHead>
@@ -990,8 +1367,54 @@ export default function Admin() {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="capitalize">{task.category}</TableCell>
-                        <TableCell>${parseFloat(String(task.reward)).toFixed(2)}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1 items-start">
+                            {task.task_type === 'project' ? (
+                              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[11px]">
+                                ⏱️ Hourly Project
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[11px]">
+                                📋 Standard
+                              </Badge>
+                            )}
+                            <span className="text-xs text-muted-foreground capitalize">{task.category}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {task.task_type === 'project' ? (
+                            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                              ${parseFloat(String(task.hourly_rate || '15')).toFixed(2)}/hr
+                            </span>
+                          ) : (
+                            <span className="font-medium">
+                              ${parseFloat(String(task.reward)).toFixed(2)}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {task.task_type === 'project' ? (
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-1.5 text-xs">
+                                <span className="font-medium">{task.current_participants || 0} / {task.max_participants || 1}</span>
+                                {(task.current_participants || 0) >= (task.max_participants || 1) && (
+                                  <Badge variant="destructive" className="text-[9px] px-1 py-0">FULL</Badge>
+                                )}
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-[10px] px-1.5 flex items-center gap-1"
+                                onClick={() => expandSlotsMutation.mutate({ id: task.id, currentMax: task.max_participants || 1 })}
+                                disabled={expandSlotsMutation.isPending}
+                              >
+                                <Plus className="h-3 w-3" /> +5 Slots
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Unlimited</span>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="capitalize">
                             {tierEmoji[task.min_tier as keyof typeof tierEmoji]} {task.min_tier}
@@ -1294,15 +1717,53 @@ export default function Admin() {
                                 </div>
                               )}
                             </div>
-                            <Badge className="bg-success"> $ {parseFloat(userTask.task.reward).toFixed(0)}</Badge>
+                            <div className="flex flex-col items-end gap-1">
+                              {userTask.task.task_type === 'project' ? (
+                                <div className="text-right">
+                                  <Badge className="bg-primary/90 text-white font-mono text-xs">
+                                    ⏱️ ${(parseFloat(userTask.accrued_earnings || '0') || ((userTask.time_spent_seconds || 0) / 3600 * parseFloat(userTask.hourly_rate || '15'))).toFixed(2)}
+                                  </Badge>
+                                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                                    {Math.floor((userTask.time_spent_seconds || 0) / 3600)}h {Math.floor(((userTask.time_spent_seconds || 0) % 3600) / 60)}m active • ${parseFloat(userTask.hourly_rate || userTask.task.hourly_rate || '15').toFixed(2)}/hr
+                                  </div>
+                                </div>
+                              ) : (
+                                <Badge className="bg-success text-white font-semibold">
+                                  ${parseFloat(userTask.task.reward).toFixed(2)}
+                                </Badge>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex gap-2">
+
+                          {/* Project Responses Preview */}
+                          {userTask.project_responses && Object.keys(userTask.project_responses).length > 0 && (
+                            <div className="my-3 p-3 bg-muted/40 rounded-lg border text-xs space-y-2">
+                              <p className="font-semibold text-muted-foreground uppercase text-[11px] flex items-center gap-1">
+                                <Layers className="h-3.5 w-3.5 text-primary" /> Project Question Responses ({Object.keys(userTask.project_responses).length}):
+                              </p>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                                {Object.entries(userTask.project_responses).map(([k, v]: [string, any]) => (
+                                  <div key={k} className="p-2 rounded bg-background border">
+                                    <span className="font-medium text-muted-foreground block text-[10px]">{k}</span>
+                                    <span className="text-foreground break-words">{typeof v === 'string' ? v : JSON.stringify(v)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2 pt-2 border-t">
                             <Button
                               size="sm"
-                              onClick={() => handleTaskApproval(userTask.id, true)}
-                              disabled={approveTaskMutation.isPending}
-                            >  Approve & Pay
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                              onClick={() => {
+                                setApprovingTask(userTask);
+                                setApprovalQualityRating(5);
+                              }}
+                            >
+                              <Star className="h-3.5 w-3.5 fill-current" /> Review & Approve
                             </Button>
+
                             <Dialog>
                               <DialogTrigger asChild>
                                 <Button size="sm" variant="outline">Revise</Button>
@@ -1334,36 +1795,24 @@ export default function Admin() {
                                     }}
                                     className="w-full"
                                     disabled={reviseTaskMutation.isPending}
-                                  > Send for Revision
+                                  >
+                                    Send for Revision
                                   </Button>
                                 </div>
                               </DialogContent>
                             </Dialog>
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button size="sm" variant="destructive">Reject</Button>
-                              </DialogTrigger>
-                              <DialogContent>
-                                <DialogHeader>
-                                  <DialogTitle>Reject Task</DialogTitle>
-                                </DialogHeader>
-                                <div className="space-y-4">
-                                  <Textarea
-                                    placeholder="Enter rejection reason..."
-                                    id={`reason-${userTask.id}`}
-                                  />
-                                  <Button
-                                    onClick={() => {
-                                      const reason = (document.getElementById(`reason-${userTask.id}`) as HTMLTextAreaElement)?.value;
-                                      if (reason) handleTaskApproval(userTask.id, false, reason);
-                                    }}
-                                    className="w-full"
-                                    disabled={rejectTaskMutation.isPending}
-                                  > Confirm Rejection
-                                  </Button>
-                                </div>
-                              </DialogContent>
-                            </Dialog>
+
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => {
+                                setRejectingTask(userTask);
+                                setRejectionQualityRating(1);
+                                setRejectionReason("");
+                              }}
+                            >
+                              Reject & Rate
+                            </Button>
                           </div>
                         </div>
                       ))}
@@ -1371,6 +1820,141 @@ export default function Admin() {
                         <p className="text-center text-muted-foreground py-4 border border-dashed rounded-lg">No pending task submissions</p>
                       )}
                     </div>
+
+                    {/* Task Approval Modal with 0-5 Quality Rating */}
+                    <Dialog open={!!approvingTask} onOpenChange={(open) => !open && setApprovingTask(null)}>
+                      <DialogContent className="max-w-md">
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center gap-2">
+                            <Star className="h-5 w-5 text-amber-500 fill-amber-500" />
+                            Approve & Rate Quality
+                          </DialogTitle>
+                        </DialogHeader>
+                        {approvingTask && (
+                          <div className="space-y-4 py-2">
+                            <div className="p-3 bg-muted/40 rounded-lg text-sm space-y-1">
+                              <p className="font-semibold text-foreground">{approvingTask.task?.title}</p>
+                              <p className="text-xs text-muted-foreground">Tasker: <span className="font-medium text-foreground">{approvingTask.user?.name}</span></p>
+                              <p className="text-xs text-muted-foreground">
+                                Calculated Payout: <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                                  ${approvingTask.task?.task_type === 'project'
+                                    ? (parseFloat(approvingTask.accrued_earnings || '0') || ((approvingTask.time_spent_seconds || 0) / 3600 * parseFloat(approvingTask.hourly_rate || '15'))).toFixed(2)
+                                    : parseFloat(approvingTask.task?.reward || '0').toFixed(2)}
+                                </span>
+                              </p>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-sm font-semibold flex items-center justify-between">
+                                <span>Quality Rating (0 - 5 Stars)</span>
+                                <span className="text-primary font-bold">{approvalQualityRating.toFixed(1)} / 5.0</span>
+                              </Label>
+                              <div className="flex items-center justify-between gap-1 p-2 bg-muted/20 rounded-lg border">
+                                {[0, 1, 2, 3, 4, 5].map((starVal) => (
+                                  <button
+                                    key={starVal}
+                                    type="button"
+                                    onClick={() => setApprovalQualityRating(starVal)}
+                                    className={`flex-1 py-1.5 px-2 rounded text-xs font-semibold flex flex-col items-center gap-0.5 transition-all ${
+                                      approvalQualityRating === starVal
+                                        ? "bg-amber-500 text-white shadow-sm scale-105"
+                                        : "bg-background hover:bg-muted text-muted-foreground border"
+                                    }`}
+                                  >
+                                    <Star className={`h-4 w-4 ${approvalQualityRating >= starVal && starVal > 0 ? "fill-amber-400 text-amber-400" : ""}`} />
+                                    <span>{starVal}★</span>
+                                  </button>
+                                ))}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {approvalQualityRating === 5 && "⭐ 5.0 - Exceptional Quality: Thorough work adhering to all specifications."}
+                                {approvalQualityRating === 4 && "⭐ 4.0 - High Quality: Minor trivial imperfections, well-executed."}
+                                {approvalQualityRating === 3 && "⭐ 3.0 - Satisfactory: Meets basic acceptable standards."}
+                                {approvalQualityRating === 2 && "⭐ 2.0 - Subpar: Noticeable flaws or incomplete execution."}
+                                {approvalQualityRating === 1 && "⭐ 1.0 - Poor: Low effort or significant errors."}
+                                {approvalQualityRating === 0 && "⭐ 0.0 - Unacceptable: Completely incorrect work."}
+                              </p>
+                            </div>
+
+                            <DialogFooter className="gap-2 sm:gap-0 pt-2">
+                              <Button variant="outline" onClick={() => setApprovingTask(null)}>Cancel</Button>
+                              <Button
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                disabled={approveTaskMutation.isPending}
+                                onClick={() => handleTaskApproval(approvingTask.id, true, undefined, approvalQualityRating)}
+                              >
+                                {approveTaskMutation.isPending ? "Approving..." : "Confirm & Release Payment"}
+                              </Button>
+                            </DialogFooter>
+                          </div>
+                        )}
+                      </DialogContent>
+                    </Dialog>
+
+                    {/* Task Rejection Modal with Quality Score and Reason */}
+                    <Dialog open={!!rejectingTask} onOpenChange={(open) => !open && setRejectingTask(null)}>
+                      <DialogContent className="max-w-md">
+                        <DialogHeader>
+                          <DialogTitle className="text-destructive flex items-center gap-2">
+                            Reject Submission & Rate Quality
+                          </DialogTitle>
+                        </DialogHeader>
+                        {rejectingTask && (
+                          <div className="space-y-4 py-2">
+                            <div className="p-3 bg-destructive/10 rounded-lg text-sm space-y-1">
+                              <p className="font-semibold text-foreground">{rejectingTask.task?.title}</p>
+                              <p className="text-xs text-muted-foreground">Tasker: <span className="font-medium text-foreground">{rejectingTask.user?.name}</span></p>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-sm font-semibold flex items-center justify-between">
+                                <span>Quality Rating for Submission</span>
+                                <span className="text-destructive font-bold">{rejectionQualityRating.toFixed(1)} / 5.0</span>
+                              </Label>
+                              <div className="flex items-center justify-between gap-1 p-2 bg-muted/20 rounded-lg border">
+                                {[0, 1, 2, 3, 4, 5].map((starVal) => (
+                                  <button
+                                    key={starVal}
+                                    type="button"
+                                    onClick={() => setRejectionQualityRating(starVal)}
+                                    className={`flex-1 py-1.5 px-2 rounded text-xs font-semibold flex flex-col items-center gap-0.5 transition-all ${
+                                      rejectionQualityRating === starVal
+                                        ? "bg-destructive text-white shadow-sm"
+                                        : "bg-background hover:bg-muted text-muted-foreground border"
+                                    }`}
+                                  >
+                                    <Star className={`h-4 w-4 ${rejectionQualityRating >= starVal && starVal > 0 ? "fill-amber-400 text-amber-400" : ""}`} />
+                                    <span>{starVal}★</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="reject-task-reason">Rejection Feedback / Reason</Label>
+                              <Textarea
+                                id="reject-task-reason"
+                                placeholder="Explain why the submission failed standards..."
+                                rows={3}
+                                value={rejectionReason}
+                                onChange={(e) => setRejectionReason(e.target.value)}
+                              />
+                            </div>
+
+                            <DialogFooter className="gap-2 sm:gap-0 pt-2">
+                              <Button variant="outline" onClick={() => setRejectingTask(null)}>Cancel</Button>
+                              <Button
+                                variant="destructive"
+                                disabled={rejectTaskMutation.isPending || !rejectionReason.trim()}
+                                onClick={() => handleTaskApproval(rejectingTask.id, false, rejectionReason, rejectionQualityRating)}
+                              >
+                                {rejectTaskMutation.isPending ? "Rejecting..." : "Confirm Rejection"}
+                              </Button>
+                            </DialogFooter>
+                          </div>
+                        )}
+                      </DialogContent>
+                    </Dialog>
                   </div>
 
                   <div className="border-t my-4" />

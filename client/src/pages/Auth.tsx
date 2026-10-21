@@ -101,6 +101,7 @@ export default function Auth() {
       gender: "geek" as const,
       country: "",
       referredBy: referralCode || undefined,
+      taskPreference: "all" as const,
     },
   });
 
@@ -428,8 +429,54 @@ export default function Auth() {
   };
 
   const onRegister = (data: RegistrationFormData) => {
+    if (!matchedCountry) {
+      const msg = "Please enter and select an authorized country of residence.";
+      setRegisterError(msg);
+      toast({
+        title: "Country Required",
+        description: msg,
+        variant: "destructive",
+      });
+      return;
+    }
     setRegisterError(null);
     registerMutation.mutate(data);
+  };
+
+  const onRegisterInvalid = (errors: any) => {
+    console.warn('[REGISTER] Form validation errors:', errors);
+
+    let firstErrorMsg = "Please complete all required fields.";
+    if (errors.name) {
+      firstErrorMsg = errors.name.message || "Please enter your legal full name.";
+    } else if (errors.phone) {
+      firstErrorMsg = errors.phone.message || "Please enter your phone number.";
+    } else if (errors.email) {
+      firstErrorMsg = errors.email.message || "Please enter your email address.";
+    } else if (errors.password) {
+      firstErrorMsg = errors.password.message || "Please enter a valid password.";
+    } else if (errors.confirmPassword) {
+      firstErrorMsg = errors.confirmPassword.message || "Please confirm your password.";
+    } else if (errors.country) {
+      firstErrorMsg = errors.country.message || "Please enter your country of residence.";
+    }
+
+    setRegisterError(firstErrorMsg);
+    toast({
+      title: "Incomplete Application",
+      description: firstErrorMsg,
+      variant: "destructive",
+    });
+
+    const errorKeys = Object.keys(errors);
+    const firstField = errorKeys[0];
+    if (firstField) {
+      const el = document.querySelector(`[name="${firstField}"], #${firstField}, #register-${firstField}`) as HTMLElement;
+      if (el) {
+        el.focus();
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
   };
 
   const watchedCountry = registerForm.watch("country") || "";
@@ -544,7 +591,7 @@ export default function Auth() {
             </TabsContent>
 
             <TabsContent value="register">
-              <form onSubmit={registerForm.handleSubmit(onRegister)} className="space-y-3.5">
+              <form onSubmit={registerForm.handleSubmit(onRegister, onRegisterInvalid)} className="space-y-3.5">
                 <div className="space-y-1">
                   <Label htmlFor="name">Legal Full Name</Label>
                   <Input
@@ -711,6 +758,41 @@ export default function Auth() {
                   </div>
                 )}
 
+                {/* Preferred Task Focus Selector */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold text-foreground">
+                      Task Focus Preference
+                    </Label>
+                    <span className="text-[11px] text-muted-foreground">Choose your workload</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'all', label: 'All Tasks', icon: '⚡', desc: 'Standard & Projects' },
+                      { id: 'standard', label: 'Standard Only', icon: '📋', desc: 'Fixed micro-tasks' },
+                      { id: 'project', label: 'Projects Only', icon: '⏱️', desc: 'Hourly paid projects' },
+                    ].map((pref) => {
+                      const isSelected = (registerForm.watch("taskPreference") || "all") === pref.id;
+                      return (
+                        <button
+                          key={pref.id}
+                          type="button"
+                          onClick={() => registerForm.setValue("taskPreference", pref.id as any)}
+                          className={`p-2.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                            isSelected
+                              ? "bg-accent/15 border-accent text-accent ring-1 ring-accent/30 shadow-sm"
+                              : "bg-muted/30 border-border/60 hover:bg-muted/60 text-muted-foreground"
+                          }`}
+                        >
+                          <span className="text-base">{pref.icon}</span>
+                          <span className="font-bold text-xs text-foreground mt-1">{pref.label}</span>
+                          <span className="text-[10px] text-muted-foreground leading-tight mt-0.5">{pref.desc}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {/* Hidden referral code field */}
                 {referralCode && (
                   <input type="hidden" {...registerForm.register("referredBy")} value={referralCode} />
@@ -724,11 +806,11 @@ export default function Auth() {
 
                 <Button
                   type="submit"
-                  className="w-full h-11 rounded-2xl font-bold bg-accent hover:bg-accent/90 text-white shadow-md hover:shadow-lg transition-all mt-2"
-                  disabled={registerMutation.isPending || !matchedCountry || !registerForm.formState.isValid}
+                  className="w-full h-11 rounded-2xl font-bold bg-accent hover:bg-accent/90 text-white shadow-md hover:shadow-lg transition-all mt-2 cursor-pointer"
+                  disabled={registerMutation.isPending}
                 >
                   {registerMutation.isPending && <ButtonLoader />}
-                  {registerMutation.isPending ? "Creating Specialist Account..." : "Create Specialist Account"}
+                  {registerMutation.isPending ? "Submitting Application..." : "Submit Application"}
                 </Button>
               </form>
             </TabsContent>

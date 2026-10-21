@@ -1,8 +1,10 @@
 import { z } from "zod";
 export const genderEnum = ['male', 'female', 'geek'] as const;
-export const skillUpgradeTierEnum = ['member', 'silver', 'bronze', 'diamond', 'gold', 'vip', 'premium'] as const;
+export const skillUpgradeTierEnum = ['member', 'silver', 'bronze', 'diamond', 'gold', 'vip', 'premium', 'universal'] as const;
 export const taskCategoryEnum = ['main', 'social', 'surveys', 'testing', 'ai', 'app'] as const;
-export const taskStatusEnum = ['pending', 'approved', 'rejected', 'claimed', 'revision_requested', 'cancelled'] as const;
+export const taskTypeEnum = ['standard', 'project'] as const;
+export const taskPreferenceEnum = ['standard', 'project', 'all'] as const;
+export const taskStatusEnum = ['pending', 'approved', 'rejected', 'claimed', 'revision_requested', 'cancelled', 'submitted'] as const;
 export const transactionTypeEnum = ['earning', 'withdrawal', 'referral', 'skill-upgrade'] as const;
 export const transactionStatusEnum = ['pending', 'completed', 'failed'] as const;
 export const roleEnum = ['user', 'admin'] as const;
@@ -144,6 +146,8 @@ export const TASK_DISCIPLINES: TaskDisciplineMeta[] = [
 export type Gender = typeof genderEnum[number];
 export type SkillUpgradeTier = typeof skillUpgradeTierEnum[number];
 export type TaskCategory = typeof taskCategoryEnum[number];
+export type TaskType = typeof taskTypeEnum[number];
+export type TaskPreference = typeof taskPreferenceEnum[number];
 export type TaskStatus = typeof taskStatusEnum[number];
 export type TransactionType = typeof transactionTypeEnum[number];
 export type TransactionStatus = typeof transactionStatusEnum[number];
@@ -151,6 +155,43 @@ export type Role = typeof roleEnum[number];
 export type ApprovalStatus = typeof approvalStatusEnum[number];
 export type PaymentMethodType = typeof paymentMethodEnum[number];
 export type OrderStatus = typeof orderStatusEnum[number];
+
+// Project structure interfaces
+export interface ProjectTaskItem {
+  id: string;
+  title: string;
+  description: string;
+  type?: 'question' | 'checklist' | 'text' | 'file' | 'choice';
+  estimated_duration_minutes: number;
+  options?: string[];
+  required?: boolean;
+}
+
+export interface ProjectSubsection {
+  id: string;
+  title: string;
+  description?: string;
+  tasks: ProjectTaskItem[];
+}
+
+export interface ProjectSection {
+  id: string;
+  title: string;
+  description?: string;
+  subsections: ProjectSubsection[];
+}
+
+export interface UserStats {
+  user_id: string;
+  tasks_completed: number;
+  tasks_approved: number;
+  tasks_rejected?: number;
+  tasks_cancelled?: number;
+  rating?: number;          // Legacy/Completion rate
+  completion_rate?: number; // Completion/Success rate from 0-100%
+  quality_rating?: number;  // Quality rating from 0.00 to 5.00
+  updated_at?: string;
+}
 
 export interface User {
   id: string; // UUID from Supabase auth.users
@@ -171,9 +212,16 @@ export interface User {
   pending_verification: boolean;
   verification_documents?: string[];
   orientation_complete: boolean;
+  grammar_test_attempts?: number;
+  grammar_test_passed?: boolean;
+  grammar_test_score?: number;
   tasks_completed?: number; // Total tasks completed
   tasks_approved?: number;  // Tasks that were approved
-  rating?: number;          // Rating from 0-100 based on approved/completed ratio
+  rating?: number;          // Completion rate from 0-100%
+  completion_rate?: number; // Success/Completion rate from 0-100%
+  quality_rating?: number;  // Quality rating from 0.00 to 5.00
+  task_preference?: TaskPreference; // Preferred task types: standard, project, or all
+  has_project_access?: boolean;     // Whether user has unlocked project-based hourly tasks
   has_pending_upgrade?: boolean;
   country?: string;
   created_at: string;
@@ -201,8 +249,16 @@ export interface Task {
   title: string;
   description: string;
   category: TaskCategory;
+  task_type?: TaskType;            // 'standard' (fixed reward) or 'project' (hourly rate)
   url?: string;
-  reward: string | number;
+  reward: string | number;         // Fixed reward amount for standard tasks or base reference
+  hourly_rate?: string | number;   // Specific compensation rate per hour for project tasks
+  max_participants?: number;       // Maximum participants cap for the project
+  current_participants?: number;   // Number of active participants claimed
+  estimated_duration_minutes?: number; // Approximated completion duration
+  required_skills?: string[];      // Required qualifications/skills
+  project_structure?: ProjectSection[]; // Structured sections, subsections, and questions/tasks
+  spotsRemaining?: number;         // Dynamic remaining spots (max_participants - current_participants)
   min_tier: SkillUpgradeTier;
   is_active: boolean;
   attachments?: any;
@@ -210,14 +266,20 @@ export interface Task {
   created_at: string;
 }
 
-// Simplified UserTask (removed all tracking fields)
+// UserTask
 export interface UserTask {
   id: string; // UUID
   user_id: string; // UUID from Supabase auth.users
   task_id: string; // UUID
   status: TaskStatus;
+  submission_description?: string; // Submitter's deliverable notes
   rejection_reason?: string;
   feedback?: string; // For revision requests
+  quality_rating?: number;         // Quality rating 0.00 - 5.00 awarded on approval/rejection
+  time_spent_seconds?: number;     // Tracked working time in seconds
+  hourly_rate?: string | number;   // Hourly compensation rate active at claim time
+  accrued_earnings?: string | number; // Calculated earnings based on working time
+  project_responses?: Record<string, any>; // User answers and progress on project sections
   proof_attachments?: any;
   feedback_attachments?: any;
   created_at: string;
@@ -347,15 +409,14 @@ export interface OrientationStatus {
 
 // Input schemas using Zod
 export const insertUserSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  phone: z.string().optional().refine((val) => {
-    if (!val || val.trim() === "") return true;
-    return /^\+[1-9]\d{1,14}$/.test(val);
+  name: z.string().min(1, "Please enter your legal full name"),
+  phone: z.string().min(1, "Please enter your phone number").refine((val) => {
+    if (!val || val.trim() === "") return false;
+    return /^\+[1-9]\d{1,14}$/.test(val.replace(/\s+/g, ''));
   }, {
-    message: "Phone number must be in E.164 format (e.g., +1234567890) or leave blank"
+    message: "Please enter a valid phone number with country code (e.g., +1234567890)"
   }),
-  email: z.string().min(1, "Email is required").refine((email) => {
-    // More permissive email validation that accepts most valid formats
+  email: z.string().min(1, "Please enter your email address").refine((email) => {
     const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
     return emailRegex.test(email);
   }, "Please enter a valid email address"),
@@ -366,28 +427,41 @@ export const insertUserSchema = z.object({
     .regex(/[0-9]/, "Password must contain at least one number")
     .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character"),
   gender: z.enum(genderEnum),
-  country: z.string().optional(),
+  country: z.string().min(1, "Please enter your country of residence"),
   referredBy: z.string().optional(),
   approvalStatus: z.enum(approvalStatusEnum).optional().default('pending'),
+  taskPreference: z.enum(taskPreferenceEnum).optional().default('all'),
 });
 
 export const insertTaskSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().min(1, "Description is required"),
   category: z.enum(taskCategoryEnum),
+  taskType: z.enum(taskTypeEnum).optional().default('standard'),
   url: z.string().url().optional().or(z.literal("")),
   reward: z.coerce.string().refine((val) => /^\d*\.?\d*$/.test(val) && val !== "", "Invalid reward amount"),
+  hourlyRate: z.coerce.string().optional(),
+  maxParticipants: z.coerce.number().int().positive().optional().default(1),
+  currentParticipants: z.coerce.number().int().nonnegative().optional().default(0),
+  estimatedDurationMinutes: z.coerce.number().int().positive().optional(),
+  requiredSkills: z.any().optional(),
+  projectStructure: z.any().optional(),
   minTier: z.enum(skillUpgradeTierEnum),
   isActive: z.boolean().optional(),
   isOrientation: z.boolean().optional(),
   attachments: z.any().optional(),
+  instructions: z.string().optional(),
 });
 
-// Simplified UserTask insert schema (removed tracking fields)
 export const insertUserTaskSchema = z.object({
   taskId: z.string().uuid("Invalid Task ID"),
   status: z.enum(taskStatusEnum).optional(),
   rejectionReason: z.string().optional(),
+  qualityRating: z.number().min(0).max(5).optional(),
+  timeSpentSeconds: z.number().int().nonnegative().optional(),
+  hourlyRate: z.coerce.string().optional(),
+  accruedEarnings: z.coerce.string().optional(),
+  projectResponses: z.any().optional(),
   proof_attachments: z.any().optional(),
   feedback_attachments: z.any().optional(),
 });
@@ -454,3 +528,36 @@ export type InsertWithdrawal = z.infer<typeof insertWithdrawalSchema>;
 export type InsertOrder = z.infer<typeof insertOrderSchema>;
 export type InsertPaymentMethod = z.infer<typeof insertPaymentMethodSchema>;
 export type LoginCredentials = z.infer<typeof loginSchema>;
+
+// Assessment Interfaces
+export interface AssessmentQuestionMCQ {
+  id: string;
+  question: string;
+  options: string[];
+  correctAnswer?: number;
+  category?: string;
+  explanation?: string;
+}
+
+export interface AssessmentQuestionWritten {
+  id: string;
+  question: string;
+  category?: string;
+  minWords?: number; // 1500 words minimum
+  maxWords?: number; // 5000 words maximum
+  instructions?: string;
+}
+
+export interface AssessmentSubmission {
+  id?: string;
+  user_id: string;
+  assessment_type: 'grammar' | 'discipline' | 'hourly';
+  discipline_id?: string;
+  mcq_answers?: Record<string, number>;
+  written_answers?: Record<string, string>;
+  score?: number;
+  total_questions?: number;
+  passed: boolean;
+  attempt_number?: number;
+  created_at?: string;
+}

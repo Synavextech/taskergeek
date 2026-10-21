@@ -6,7 +6,7 @@ import type {
   InsertSkillUpgrade, InsertWithdrawal, InsertOrder, InsertPaymentMethod,
   Friend, TaskRecommendation
 } from '@shared/types';
-import { generateReferralCode, calculateUserRating, generateTaskId } from './utils';
+import { generateReferralCode, calculateUserRating, calculateCompletionRate, calculateQualityRating, generateTaskId } from './utils';
 
 export const storage = {
   // User management
@@ -29,12 +29,19 @@ export const storage = {
     if (statsRecord) {
       user.tasks_completed = statsRecord.tasks_completed;
       user.tasks_approved = statsRecord.tasks_approved;
-      user.rating = statsRecord.rating;
+      user.rating = statsRecord.completion_rate ?? statsRecord.rating ?? 100;
+      user.completion_rate = statsRecord.completion_rate ?? statsRecord.rating ?? 100;
+      user.quality_rating = statsRecord.quality_rating != null ? parseFloat(statsRecord.quality_rating) : 5.0;
     } else {
       user.tasks_completed = 0;
       user.tasks_approved = 0;
       user.rating = 100;
+      user.completion_rate = 100;
+      user.quality_rating = 5.0;
     }
+
+    user.task_preference = userRecord.task_preference || 'all';
+    user.has_project_access = userRecord.has_project_access || userRecord.role === 'admin';
 
     const { data: pendingUpgrade } = await client
       .from('manual_subscriptions')
@@ -83,6 +90,10 @@ export const storage = {
       referred_by: insertUser.referredBy || null,
       is_active: true,
       approval_status: insertUser.approvalStatus || 'pending' as const,
+      task_preference: (insertUser as any).taskPreference || 'all',
+      has_project_access: false,
+      quality_rating: 5.0,
+      completion_rate: 100,
       orientation_complete: false
     };
     const { data, error } = await client.from('users').insert(userData).select().single();
@@ -115,18 +126,45 @@ export const storage = {
         .eq('user_id', userId)
         .eq('status', 'rejected');
 
+      const { count: cancelledCount } = await client.from('user_tasks')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('status', 'cancelled');
+
+      // Fetch quality ratings given by admin
+      const { data: ratedTasks } = await client.from('user_tasks')
+        .select('quality_rating')
+        .eq('user_id', userId)
+        .not('quality_rating', 'is', null);
+
       const approved = approvedCount || 0;
       const rejected = rejectedCount || 0;
+      const cancelled = cancelledCount || 0;
       const totalCompleted = approved + rejected;
-      const rating = calculateUserRating(approved, totalCompleted);
+
+      const completionRate = calculateCompletionRate(approved, rejected, cancelled);
+      const ratingsArray = ratedTasks ? ratedTasks.map((t: any) => parseFloat(t.quality_rating)).filter((n: number) => !isNaN(n)) : [];
+      const qualityRating = calculateQualityRating(ratingsArray);
 
       await client.from('user_stats').upsert({
         user_id: userId,
         tasks_completed: totalCompleted,
         tasks_approved: approved,
-        rating: rating,
+        tasks_rejected: rejected,
+        tasks_cancelled: cancelled,
+        rating: completionRate,
+        completion_rate: completionRate,
+        quality_rating: qualityRating,
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id' });
+
+      // Synchronize users table for easy querying
+      await client.from('users').update({
+        quality_rating: qualityRating,
+        completion_rate: completionRate,
+        rating: completionRate,
+        updated_at: new Date().toISOString()
+      }).eq('id', userId);
     } catch (error) {
       console.error(`Error updating stats for user ${userId}:`, error);
     }
@@ -145,13 +183,21 @@ export const storage = {
   },
 
   async createTask(client: SupabaseClient, task: InsertTask): Promise<Task> {
-    const newTaskData = {
+    const newTaskData: any = {
       task_id: generateTaskId(),
       title: task.title,
       description: task.description,
       category: task.category,
+      task_type: task.taskType || 'standard',
       url: task.url || null,
       reward: task.reward,
+      hourly_rate: task.hourlyRate ? parseFloat(task.hourlyRate) : 0,
+      max_participants: task.maxParticipants || 1,
+      current_participants: 0,
+      estimated_duration_minutes: task.estimatedDurationMinutes || 30,
+      required_skills: task.requiredSkills || [],
+      project_structure: task.projectStructure || [],
+      instructions: task.instructions || null,
       min_tier: task.minTier,
       is_active: task.isActive ?? true,
       is_orientation: task.isOrientation ?? false,
@@ -258,10 +304,14 @@ export const storage = {
     }).select().single();
     if (error) throw error;
 
-    await this.updateUser(client, sub.userId.toString(), {
+    const userUpdates: any = {
       skill_upgrade_tier: sub.tier,
       skill_upgrade_expiry: sub.expiresAt
-    } as any);
+    };
+    if (sub.tier === 'universal') {
+      userUpdates.has_project_access = true;
+    }
+    await this.updateUser(client, sub.userId.toString(), userUpdates);
     return data as Subscription;
   },
 

@@ -50,6 +50,20 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
                 setLocation('/suspended');
                 return;
             }
+
+            // Redirect based on onboarding progression
+            if (user.role !== 'admin') {
+                if (!user.orientation_complete) {
+                    console.log('[REQUIRE_AUTH] Incomplete orientation, redirecting to /orientation');
+                    setLocation('/orientation');
+                    return;
+                }
+                if (!user.grammar_test_passed) {
+                    console.log('[REQUIRE_AUTH] Incomplete grammar test, redirecting to /grammar-test');
+                    setLocation('/grammar-test');
+                    return;
+                }
+            }
         }
     }, [user, effectiveLoading, isMounted, setLocation]);
 

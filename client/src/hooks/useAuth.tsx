@@ -36,6 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (user.role === 'admin') return '/admin';
     if (user.approval_status !== 'approved') return '/waiting-approval';
     if (!user.orientation_complete) return '/orientation';
+    if (!user.grammar_test_passed) return '/grammar-test';
     return '/home';
   };
 

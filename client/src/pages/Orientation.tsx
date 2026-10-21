@@ -90,10 +90,10 @@ export function Orientation() {
 
       toast({
         title: "Orientation Completed! 🌟",
-        description: "You have verified platform standards and can now access tasks.",
+        description: "Orientation benchmarks verified. Proceeding to Grammar Assessment.",
       });
 
-      setLocation("/home");
+      setLocation("/grammar-test");
     },
     onError: (error) => {
       toast({
@@ -107,9 +107,17 @@ export function Orientation() {
   const canProceed = !isOrientationComplete && hasReviewed;
 
   const handleCompleteOrientation = () => {
-    if (canProceed) {
-      completeOrientationMutation.mutate();
+    if (!hasReviewed) {
+      toast({
+        title: "Confirmation Required",
+        description: "Please check the orientation confirmation box below to verify you have reviewed the quality benchmarks.",
+        variant: "destructive"
+      });
+      const el = document.getElementById("reviewed");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
     }
+    completeOrientationMutation.mutate();
   };
 
   const handleCategoryComplete = (category: string) => {
@@ -258,8 +266,8 @@ export function Orientation() {
           {!isOrientationComplete ? (
             <Button
               onClick={handleCompleteOrientation}
-              disabled={!canProceed || completeOrientationMutation.isPending}
-              className="w-full rounded-2xl font-bold bg-accent hover:bg-accent/90 text-accent-foreground h-12"
+              disabled={completeOrientationMutation.isPending}
+              className="w-full rounded-2xl font-bold bg-accent hover:bg-accent/90 text-accent-foreground h-12 cursor-pointer"
             >
               {!hasReviewed ? (
                 <>

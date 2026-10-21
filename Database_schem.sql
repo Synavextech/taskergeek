@@ -12,7 +12,7 @@ DO $$ BEGIN
     CREATE TYPE public.gender_type AS ENUM ('male', 'female', 'geek');
     CREATE TYPE public.role_type AS ENUM ('user', 'admin');
     CREATE TYPE public.approval_status_type AS ENUM ('pending', 'approved', 'rejected');
-    CREATE TYPE public.skill_upgrade_tier_type AS ENUM ('member', 'silver', 'bronze', 'diamond', 'gold', 'vip');
+    CREATE TYPE public.skill_upgrade_tier_type AS ENUM ('member', 'silver', 'bronze', 'diamond', 'gold', 'vip', 'universal');
     CREATE TYPE public.task_category_type AS ENUM ('main', 'social', 'surveys', 'testing', 'ai', 'app');
     CREATE TYPE public.task_status_type AS ENUM ('pending', 'approved', 'rejected', 'claimed', 'revision_requested', 'cancelled', 'submitted');
     CREATE TYPE public.transaction_type AS ENUM ('earning', 'withdrawal', 'referral', 'skill-upgrade');
@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS public.users (
     approval_status public.approval_status_type DEFAULT 'pending',
     verification_status text DEFAULT 'unverified',
     orientation_complete boolean DEFAULT 'false',
+    grammar_test_attempts integer DEFAULT 0,
+    grammar_test_passed boolean DEFAULT false,
     skill_upgrade_tier public.skill_upgrade_tier_type,
     skill_upgrade_expiry timestamp with time zone,
     referral_code text UNIQUE,
@@ -46,6 +48,10 @@ CREATE TABLE IF NOT EXISTS public.users (
     is_suspended boolean DEFAULT false,
     suspension_end_date timestamp with time zone,
     pending_verification boolean DEFAULT false,
+    task_preference text DEFAULT 'all', -- 'standard', 'project', 'all'
+    has_project_access boolean DEFAULT false, -- Granted via skill upgrade / qualification
+    quality_rating numeric DEFAULT 5.0, -- 0.00 to 5.00 quality score
+    completion_rate numeric DEFAULT 100, -- 0 to 100% completion/success rate
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now()
 );
@@ -55,7 +61,11 @@ CREATE TABLE IF NOT EXISTS public.user_stats (
     user_id uuid PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
     tasks_completed integer DEFAULT 0,
     tasks_approved integer DEFAULT 0,
-    rating numeric DEFAULT 100,
+    tasks_rejected integer DEFAULT 0,
+    tasks_cancelled integer DEFAULT 0,
+    rating numeric DEFAULT 100, -- legacy completion rate
+    completion_rate numeric DEFAULT 100, -- 0-100% completion/success rate
+    quality_rating numeric DEFAULT 5.0, -- 0.00 to 5.00 quality score
     updated_at timestamp with time zone DEFAULT now()
 );
 
@@ -66,8 +76,16 @@ CREATE TABLE IF NOT EXISTS public.tasks (
     title text NOT NULL,
     description text NOT NULL,
     category public.task_category_type NOT NULL,
+    task_type text DEFAULT 'standard', -- 'standard' (fixed reward) or 'project' (hourly rate)
     url text,
-    reward numeric NOT NULL,
+    reward numeric NOT NULL, -- Base reward or reference amount
+    hourly_rate numeric DEFAULT 0, -- Specific hourly rate for project tasks
+    max_participants integer DEFAULT 1, -- Participant cap
+    current_participants integer DEFAULT 0, -- Active claims countdown tracker
+    estimated_duration_minutes integer DEFAULT 30, -- Approximated completion duration
+    required_skills jsonb DEFAULT '[]'::jsonb, -- Skill/qualification requirements
+    project_structure jsonb DEFAULT '[]'::jsonb, -- Sections, subsections, and questions/tasks
+    instructions text,
     min_tier public.skill_upgrade_tier_type NOT NULL,
     is_active boolean DEFAULT true,
     is_orientation boolean DEFAULT false,
@@ -86,11 +104,42 @@ CREATE TABLE IF NOT EXISTS public.user_tasks (
     rejection_reason text,
     feedback text, -- For revisions
     submission_description text,
+    quality_rating numeric, -- Quality rating given by admin (0.00 - 5.00)
+    time_spent_seconds integer DEFAULT 0, -- Tracked working time in seconds
+    hourly_rate numeric DEFAULT 0, -- Locked hourly rate at time of claim
+    accrued_earnings numeric DEFAULT 0, -- Calculated working earnings
+    project_responses jsonb DEFAULT '{}'::jsonb, -- Submitted section/subsection question answers
     proof_attachments jsonb DEFAULT '[]'::jsonb, -- Array of proof objects
     feedback_attachments jsonb DEFAULT '[]'::jsonb, -- Array of feedback objects
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now()
 );
+
+-- Safe Migration Alter Statements
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS task_preference text DEFAULT 'all';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS has_project_access boolean DEFAULT false;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS quality_rating numeric DEFAULT 5.0;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS completion_rate numeric DEFAULT 100;
+
+ALTER TABLE public.user_stats ADD COLUMN IF NOT EXISTS quality_rating numeric DEFAULT 5.0;
+ALTER TABLE public.user_stats ADD COLUMN IF NOT EXISTS completion_rate numeric DEFAULT 100;
+ALTER TABLE public.user_stats ADD COLUMN IF NOT EXISTS tasks_cancelled integer DEFAULT 0;
+ALTER TABLE public.user_stats ADD COLUMN IF NOT EXISTS tasks_rejected integer DEFAULT 0;
+
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS task_type text DEFAULT 'standard';
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS hourly_rate numeric DEFAULT 0;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS max_participants integer DEFAULT 1;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS current_participants integer DEFAULT 0;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS estimated_duration_minutes integer DEFAULT 30;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS required_skills jsonb DEFAULT '[]'::jsonb;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS project_structure jsonb DEFAULT '[]'::jsonb;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS instructions text;
+
+ALTER TABLE public.user_tasks ADD COLUMN IF NOT EXISTS quality_rating numeric;
+ALTER TABLE public.user_tasks ADD COLUMN IF NOT EXISTS time_spent_seconds integer DEFAULT 0;
+ALTER TABLE public.user_tasks ADD COLUMN IF NOT EXISTS hourly_rate numeric DEFAULT 0;
+ALTER TABLE public.user_tasks ADD COLUMN IF NOT EXISTS accrued_earnings numeric DEFAULT 0;
+ALTER TABLE public.user_tasks ADD COLUMN IF NOT EXISTS project_responses jsonb DEFAULT '{}'::jsonb;
 
 -- Subscriptions Table
 CREATE TABLE IF NOT EXISTS public.subscriptions (
@@ -211,6 +260,20 @@ CREATE TABLE IF NOT EXISTS public.task_recommendations (
     created_at timestamp with time zone DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS public.assessment_submissions (
+    id serial PRIMARY KEY,
+    user_id uuid REFERENCES public.users(id) ON DELETE CASCADE,
+    assessment_type text NOT NULL, -- 'grammar', 'discipline', 'hourly'
+    discipline_id text,
+    mcq_answers jsonb,
+    written_answers jsonb,
+    score numeric DEFAULT 0,
+    total_questions integer DEFAULT 0,
+    passed boolean DEFAULT false,
+    attempt_number integer DEFAULT 1,
+    created_at timestamp with time zone DEFAULT now()
+);
+
 -- 3. Default Data
 INSERT INTO public.system_settings (key, value, description)
 VALUES ('allow_profile_editing', 'true'::jsonb, 'Allow users to edit their profile details')
@@ -231,6 +294,7 @@ ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.friends ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.task_recommendations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.assessment_submissions ENABLE ROW LEVEL SECURITY;
 
 -- 5. Indexes for Performance
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);

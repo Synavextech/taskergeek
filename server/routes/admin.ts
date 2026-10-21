@@ -447,7 +447,15 @@ router.get("/tasks", async (req: any, res) => {
 
 router.patch("/tasks/:id", async (req: any, res) => {
     try {
-        const task = await storage.updateTask(req.supabaseAdmin, req.params.id, req.body);
+        const updates = { ...req.body };
+        // If max_participants is increased beyond current_participants, reactivate project
+        if (typeof updates.max_participants === 'number') {
+            const { data: existing } = await req.supabaseAdmin.from('tasks').select('current_participants').eq('id', req.params.id).single();
+            if (existing && updates.max_participants > (existing.current_participants || 0)) {
+                updates.is_active = true;
+            }
+        }
+        const task = await storage.updateTask(req.supabaseAdmin, req.params.id, updates);
         res.json(task);
     } catch (error) {
         res.status(400).json({ message: "Failed to update task" });
@@ -480,6 +488,9 @@ router.get("/user-tasks/pending", async (req: any, res) => {
 router.patch("/user-tasks/:id/approve", async (req: any, res) => {
     try {
         const userTaskId = req.params.id;
+        const { quality_rating } = req.body;
+        const qualityScore = typeof quality_rating === 'number' ? Math.max(0, Math.min(5, quality_rating)) : 5.0;
+
         const { data: userTask } = await req.supabaseAdmin
             .from('user_tasks')
             .select(`*, task:tasks(*)`)
@@ -511,10 +522,25 @@ router.patch("/user-tasks/:id/approve", async (req: any, res) => {
             return res.json({ success: true, message: "Bid accepted and task assigned" });
         }
 
+        // Determine reward: fixed reward for standard tasks vs working-time hourly earnings for project tasks
+        let reward = parseFloat(userTask.task.reward || 0);
+        if (userTask.task?.task_type === 'project') {
+            const rate = parseFloat(userTask.hourly_rate || userTask.task.hourly_rate || 0);
+            const seconds = userTask.time_spent_seconds || 0;
+            if (rate > 0 && seconds > 0) {
+                reward = parseFloat(((seconds / 3600) * rate).toFixed(2));
+            }
+        }
+
         // Standard submission approval logic
         const { error: updateError } = await req.supabaseAdmin
             .from('user_tasks')
-            .update({ status: 'approved', updated_at: new Date().toISOString() })
+            .update({
+                status: 'approved',
+                quality_rating: qualityScore,
+                accrued_earnings: reward,
+                updated_at: new Date().toISOString()
+            })
             .eq('id', userTaskId);
 
         if (updateError) {
@@ -522,11 +548,13 @@ router.patch("/user-tasks/:id/approve", async (req: any, res) => {
             throw updateError;
         }
 
+        // Update user stats (completion rate & quality rating)
+        await storage.updateUserStats(req.supabaseAdmin, userTask.user_id);
+
         // Update wallet
         const wallet = await storage.getWallet(req.supabaseAdmin, userTask.user_id);
         if (wallet) {
-            const reward = parseFloat(userTask.task.reward);
-            const newPending = (parseFloat(wallet.pending_balance) - reward).toFixed(2);
+            const newPending = Math.max(0, parseFloat(wallet.pending_balance) - reward).toFixed(2);
             const newAvailable = (parseFloat(wallet.available_balance) + reward).toFixed(2);
             const newTotal = (parseFloat(wallet.total_earnings) + reward).toFixed(2);
 
@@ -543,14 +571,14 @@ router.patch("/user-tasks/:id/approve", async (req: any, res) => {
                     amount: reward.toFixed(2),
                     type: 'earning',
                     status: 'completed',
-                    description: `Reward for task: ${userTask.task.title}`,
+                    description: `Reward for ${userTask.task.task_type === 'project' ? 'project' : 'task'}: ${userTask.task.title}`,
                     created_at: new Date().toISOString()
                 });
 
                 await storage.createNotification(req.supabaseAdmin, {
                     user_id: userTask.user_id,
                     title: "Task Approved",
-                    message: `Your submission for "${userTask.task.title}" has been approved. $${userTask.task.reward} added to your wallet.`,
+                    message: `Your submission for "${userTask.task.title}" has been approved with a ${qualityScore}/5 quality rating. $${reward.toFixed(2)} added to your wallet.`,
                     type: "payment",
                     is_read: false
                 });
@@ -559,15 +587,18 @@ router.patch("/user-tasks/:id/approve", async (req: any, res) => {
             }
         }
 
-        res.json({ success: true, message: "Task approved and payment processed" });
+        res.json({ success: true, message: `Task approved (${qualityScore}/5 stars) and payment processed` });
     } catch (error) {
+        console.error("Task approval error:", error);
         res.status(500).json({ message: "Failed to approve task" });
     }
 });
 
 router.patch("/user-tasks/:id/reject", async (req: any, res) => {
     try {
-        const { reason } = req.body;
+        const { reason, quality_rating } = req.body;
+        const qualityScore = typeof quality_rating === 'number' ? Math.max(0, Math.min(5, quality_rating)) : 0;
+
         const { data: userTask } = await req.supabaseAdmin
             .from('user_tasks')
             .select('*, task:tasks(*)')
@@ -578,7 +609,12 @@ router.patch("/user-tasks/:id/reject", async (req: any, res) => {
 
         const { error: updateError } = await req.supabaseAdmin
             .from('user_tasks')
-            .update({ status: 'rejected', rejection_reason: reason, updated_at: new Date().toISOString() })
+            .update({
+                status: 'rejected',
+                rejection_reason: reason,
+                quality_rating: qualityScore,
+                updated_at: new Date().toISOString()
+            })
             .eq('id', req.params.id);
 
         if (updateError) {
@@ -586,10 +622,13 @@ router.patch("/user-tasks/:id/reject", async (req: any, res) => {
             throw updateError;
         }
 
+        // Recalculate user stats (completion rate drops, quality rating updates)
+        await storage.updateUserStats(req.supabaseAdmin, userTask.user_id);
+
         // Deduct from pending balance
         const wallet = await storage.getWallet(req.supabaseAdmin, userTask.user_id);
         if (wallet) {
-            const reward = parseFloat(userTask.task.reward);
+            const reward = parseFloat(userTask.task.reward || 0);
             const newPending = Math.max(0, parseFloat(wallet.pending_balance) - reward).toFixed(2);
             await storage.updateWallet(req.supabaseAdmin, userTask.user_id, { pending_balance: newPending });
         }
@@ -597,12 +636,12 @@ router.patch("/user-tasks/:id/reject", async (req: any, res) => {
         await storage.createNotification(req.supabaseAdmin, {
             user_id: userTask.user_id,
             title: "Task Rejected",
-            message: `Your submission for "${userTask.task.title}" was rejected. Reason: ${reason || 'No reason provided'}`,
+            message: `Your submission for "${userTask.task.title}" was rejected (Quality: ${qualityScore}/5). Reason: ${reason || 'No reason provided'}`,
             type: "task",
             is_read: false
         });
 
-        res.json({ success: true });
+        res.json({ success: true, message: "Task rejected and ratings updated" });
     } catch (error) {
         res.status(500).json({ message: "Failed to reject task" });
     }

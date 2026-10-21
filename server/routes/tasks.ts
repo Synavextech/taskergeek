@@ -30,7 +30,7 @@ router.get("/", authenticateUser, async (req: any, res) => {
             if (dbOrientationTasks && dbOrientationTasks.length > 0) {
                 let tasks = dbOrientationTasks;
 
-                if (category) {
+                if (category && category !== 'all') {
                     tasks = tasks.filter((t: any) => t.category === category);
                     if (tasks.length > 2) {
                         tasks = tasks.sort(() => 0.5 - Math.random()).slice(0, 2);
@@ -54,8 +54,8 @@ router.get("/", authenticateUser, async (req: any, res) => {
         }
 
         // Handle regular tasks
-        if (!user.orientation_complete) {
-            return res.status(403).json({ message: "Complete orientation first to access regular tasks" });
+        if ((!user.orientation_complete || !user.grammar_test_passed) && user.role !== 'admin') {
+            return res.status(403).json({ message: "Complete orientation and grammar test first to access regular tasks" });
         }
 
         if (user.approval_status !== 'approved' && user.role !== 'admin') {
@@ -70,6 +70,24 @@ router.get("/", authenticateUser, async (req: any, res) => {
 
         let filteredTasks = tasks || [];
 
+        // Exclude project-based tasks that have reached participant capacity
+        filteredTasks = filteredTasks.filter((t: any) => {
+            if (t.task_type === 'project') {
+                const max = t.max_participants || 1;
+                const current = t.current_participants || 0;
+                return current < max;
+            }
+            return true;
+        });
+
+        // Filter by explicit taskType query or user's registered task_preference
+        const requestedType = req.query.taskType;
+        if (requestedType && ['standard', 'project'].includes(requestedType)) {
+            filteredTasks = filteredTasks.filter((t: any) => (t.task_type || 'standard') === requestedType);
+        } else if (user.task_preference && user.task_preference !== 'all') {
+            filteredTasks = filteredTasks.filter((t: any) => (t.task_type || 'standard') === user.task_preference);
+        }
+
         const { data: userHistory } = await req.supabaseAdmin
             .from('user_tasks')
             .select('task_id, status')
@@ -83,11 +101,11 @@ router.get("/", authenticateUser, async (req: any, res) => {
 
         filteredTasks = filteredTasks.filter((t: any) => !excludeTaskIds.has(t.id));
 
-        if (category) {
+        if (category && category !== 'all') {
             filteredTasks = filteredTasks.filter((t: any) => t.category === category);
         }
 
-        const tierHierarchy = ['member', 'silver', 'bronze', 'diamond', 'gold', 'vip', 'premium'];
+        const tierHierarchy = ['member', 'silver', 'bronze', 'diamond', 'gold', 'vip', 'universal', 'premium'];
         const userTierIndex = tierHierarchy.indexOf(user.skill_upgrade_tier || 'member');
 
         const { data: userStats } = await req.supabaseAdmin
@@ -96,23 +114,50 @@ router.get("/", authenticateUser, async (req: any, res) => {
             .eq('user_id', user.id)
             .single();
 
+        const hasProjectAccess = user.has_project_access === true || user.role === 'admin' || user.skill_upgrade_tier === 'universal' || user.skill_upgrade_tier === 'premium';
+
         filteredTasks = filteredTasks.map((task: any) => {
             const isExplicitlyRecommended = task.is_recommended === true;
             let taskTierIndex = tierHierarchy.indexOf(task.min_tier || 'member');
             let isLocked = userTierIndex < taskTierIndex;
             if (isExplicitlyRecommended) isLocked = false;
 
+            // Enforce skill-based access for project tasks
+            let lockReason: string | undefined;
+            if (task.task_type === 'project' && !hasProjectAccess) {
+                isLocked = true;
+                lockReason = 'project_access_required';
+            } else if (isLocked) {
+                lockReason = 'tier_required';
+            }
+
             let isRecommended = isExplicitlyRecommended;
             if (!isRecommended && userStats) {
-                const isHighPerformer = userStats.rating >= 80;
-                const isHighReward = parseFloat(task.reward) >= 5.0;
+                const isHighPerformer = (userStats.completion_rate ?? userStats.rating ?? 100) >= 80;
+                const isHighReward = parseFloat(task.reward || task.hourly_rate || 0) >= 5.0;
                 if (isHighPerformer && isHighReward) isRecommended = true;
             }
 
+            const spotsRemaining = task.task_type === 'project'
+                ? Math.max(0, (task.max_participants || 1) - (task.current_participants || 0))
+                : undefined;
+
             if (isLocked) {
-                return { ...task, url: undefined, locked: true, recommended: false };
+                return {
+                    ...task,
+                    url: undefined,
+                    locked: true,
+                    lockReason,
+                    recommended: false,
+                    spotsRemaining
+                };
             }
-            return { ...task, locked: false, recommended: isRecommended };
+            return {
+                ...task,
+                locked: false,
+                recommended: isRecommended,
+                spotsRemaining
+            };
         });
 
         if (includeLocked !== 'true') {
@@ -122,7 +167,9 @@ router.get("/", authenticateUser, async (req: any, res) => {
         filteredTasks.sort((a: any, b: any) => {
             if (a.recommended && !b.recommended) return -1;
             if (!a.recommended && b.recommended) return 1;
-            return parseFloat(b.reward) - parseFloat(a.reward);
+            const aVal = parseFloat(a.task_type === 'project' ? a.hourly_rate : a.reward) || 0;
+            const bVal = parseFloat(b.task_type === 'project' ? b.hourly_rate : b.reward) || 0;
+            return bVal - aVal;
         });
 
         res.json(filteredTasks);
@@ -188,13 +235,37 @@ router.post("/:id/claim", authenticateUser, async (req: any, res) => {
             .single();
 
         if (!task) return res.status(404).json({ message: "Task not found" });
-        if (!task.is_active) return res.status(400).json({ message: "Task is not active" });
+        if (!task.is_active) return res.status(400).json({ message: "Task is not active or has reached full participant capacity" });
 
-        if (!user.orientation_complete && !task.is_orientation && user.role !== 'admin') {
-            return res.status(403).json({ message: "Complete orientation to claim regular tasks." });
+        if ((!user.orientation_complete || !user.grammar_test_passed) && !task.is_orientation && user.role !== 'admin') {
+            return res.status(403).json({ message: "Complete orientation and grammar test to claim regular tasks." });
         }
 
-        const tiers = ['member', 'silver', 'bronze', 'diamond', 'gold', 'vip', 'premium'];
+        // Project-based task checks
+        if (task.task_type === 'project') {
+            const hasProjectAccess = user.has_project_access === true || user.role === 'admin' || user.skill_upgrade_tier === 'universal' || user.skill_upgrade_tier === 'premium';
+            if (!hasProjectAccess) {
+                return res.status(403).json({ message: "Skill upgrade to UniversalGeek or Hourly Qualification required to access project-based hourly tasks." });
+            }
+
+            const currentParticipants = task.current_participants || 0;
+            const maxParticipants = task.max_participants || 1;
+            if (currentParticipants >= maxParticipants) {
+                return res.status(400).json({ message: "This project has reached maximum participant capacity." });
+            }
+
+            // Increment participant countdown tracker
+            const nextCount = currentParticipants + 1;
+            await req.supabaseAdmin
+                .from('tasks')
+                .update({
+                    current_participants: nextCount,
+                    is_active: nextCount < maxParticipants
+                })
+                .eq('id', taskId);
+        }
+
+        const tiers = ['member', 'silver', 'bronze', 'diamond', 'gold', 'vip', 'universal', 'premium'];
         const userTierIndex = tiers.indexOf(user.skill_upgrade_tier || 'member');
         const taskTierIndex = tiers.indexOf(task.min_tier || 'member');
 
@@ -233,6 +304,10 @@ router.post("/:id/claim", authenticateUser, async (req: any, res) => {
                 user_id: userId,
                 task_id: taskId,
                 status: 'claimed',
+                hourly_rate: task.hourly_rate || 0,
+                time_spent_seconds: 0,
+                accrued_earnings: 0,
+                project_responses: {},
                 created_at: new Date().toISOString()
             })
             .select()
@@ -243,7 +318,7 @@ router.post("/:id/claim", authenticateUser, async (req: any, res) => {
         await storage.createNotification(req.supabaseAdmin, {
             user_id: userId,
             title: "Task Claimed",
-            message: `You have claimed task: ${task.title}.`,
+            message: `You have claimed ${task.task_type === 'project' ? 'project' : 'task'}: ${task.title}.`,
             type: "task",
             is_read: false
         });
@@ -276,7 +351,7 @@ router.post("/bid", authenticateUser, async (req: any, res) => {
         if (!task) return res.status(404).json({ message: "Task not found" });
         if (!task.is_active) return res.status(400).json({ message: "Task is not active" });
 
-        const tiers = ['member', 'silver', 'bronze', 'diamond', 'gold', 'vip', 'premium'];
+        const tiers = ['member', 'silver', 'bronze', 'diamond', 'gold', 'vip', 'universal', 'premium'];
         const userTierIndex = tiers.indexOf(user.skill_upgrade_tier || 'member');
         const taskTierIndex = tiers.indexOf(task.min_tier || 'member');
 
@@ -329,7 +404,7 @@ router.post("/:id/submit", authenticateUser, async (req: any, res) => {
     try {
         const userTaskId = req.params.id;
         const userId = req.user.id;
-        const { description, proof_attachments } = req.body;
+        const { description, proof_attachments, time_spent_seconds, project_responses } = req.body;
 
         const { data: userTask } = await req.supabaseAdmin
             .from('user_tasks')
@@ -344,14 +419,40 @@ router.post("/:id/submit", authenticateUser, async (req: any, res) => {
             return res.status(400).json({ message: "Task cannot be submitted in its current state" });
         }
 
+        const isProject = userTask.task?.task_type === 'project';
+        let accruedEarnings = parseFloat(userTask.task?.reward || 0);
+        let timeSpent = userTask.time_spent_seconds || 0;
+
+        if (typeof time_spent_seconds === 'number') {
+            timeSpent = Math.max(0, time_spent_seconds);
+        }
+
+        if (isProject) {
+            const hourlyRate = parseFloat(userTask.hourly_rate || userTask.task?.hourly_rate || 0);
+            if (hourlyRate > 0 && timeSpent > 0) {
+                accruedEarnings = parseFloat(((timeSpent / 3600) * hourlyRate).toFixed(2));
+            }
+        }
+
+        const updates: any = {
+            status: 'submitted',
+            submission_description: description || userTask.submission_description,
+            proof_attachments: proof_attachments || userTask.proof_attachments || [],
+            time_spent_seconds: timeSpent,
+            accrued_earnings: accruedEarnings,
+            updated_at: new Date().toISOString()
+        };
+
+        if (project_responses) {
+            updates.project_responses = {
+                ...(userTask.project_responses || {}),
+                ...project_responses
+            };
+        }
+
         const { data: updated, error } = await req.supabaseAdmin
             .from('user_tasks')
-            .update({
-                status: 'submitted',
-                submission_description: description || userTask.submission_description,
-                proof_attachments: proof_attachments || userTask.proof_attachments || [],
-                updated_at: new Date().toISOString()
-            })
+            .update(updates)
             .eq('id', userTaskId)
             .select()
             .single();
@@ -361,17 +462,70 @@ router.post("/:id/submit", authenticateUser, async (req: any, res) => {
         if (userTask.status === 'claimed') {
             const wallet = await storage.getWallet(req.supabaseAdmin, userId);
             if (wallet) {
-                const reward = parseFloat(userTask.task.reward);
-                const newPending = (parseFloat(wallet.pending_balance) + reward).toFixed(2);
+                const pendingAddition = isProject ? accruedEarnings : parseFloat(userTask.task.reward || 0);
+                const newPending = (parseFloat(wallet.pending_balance) + pendingAddition).toFixed(2);
                 await storage.updateWallet(req.supabaseAdmin, userId, { pending_balance: newPending });
             }
         }
 
-        notifyAdmins(req.supabaseAdmin, "Task Submitted", `User ${req.user.name} submitted task: ${userTask.task.title}`, "task_submission", { userId, userTaskId, taskId: userTask.task.id });
+        notifyAdmins(req.supabaseAdmin, "Task Submitted", `User ${req.user.name} submitted ${isProject ? 'project' : 'task'}: ${userTask.task.title}`, "task_submission", { userId, userTaskId, taskId: userTask.task.id });
 
         res.json(updated);
     } catch (error) {
         res.status(500).json({ message: "Failed to submit task" });
+    }
+});
+
+// Working Time & Project Progress Tracker
+router.post("/:id/track-time", authenticateUser, async (req: any, res) => {
+    try {
+        const userTaskId = req.params.id;
+        const userId = req.user.id;
+        const { time_spent_seconds, project_responses } = req.body;
+
+        const { data: userTask } = await req.supabaseAdmin
+            .from('user_tasks')
+            .select('*, task:tasks(*)')
+            .eq('id', userTaskId)
+            .single();
+
+        if (!userTask || userTask.user_id !== userId) {
+            return res.status(404).json({ message: "Task not found or unauthorized" });
+        }
+
+        if (!['claimed', 'revision_requested'].includes(userTask.status)) {
+            return res.status(400).json({ message: "Cannot track time for task in current status" });
+        }
+
+        const seconds = typeof time_spent_seconds === 'number' ? Math.max(0, time_spent_seconds) : (userTask.time_spent_seconds || 0);
+        const hourlyRate = parseFloat(userTask.hourly_rate || userTask.task?.hourly_rate || 0);
+        const accruedEarnings = hourlyRate > 0 ? parseFloat(((seconds / 3600) * hourlyRate).toFixed(2)) : 0;
+
+        const updates: any = {
+            time_spent_seconds: seconds,
+            accrued_earnings: accruedEarnings,
+            updated_at: new Date().toISOString()
+        };
+
+        if (project_responses) {
+            updates.project_responses = {
+                ...(userTask.project_responses || {}),
+                ...project_responses
+            };
+        }
+
+        const { data: updated, error } = await req.supabaseAdmin
+            .from('user_tasks')
+            .update(updates)
+            .eq('id', userTaskId)
+            .select()
+            .single();
+
+        if (error) throw error;
+        res.json({ success: true, userTask: updated });
+    } catch (error) {
+        console.error("Track time error:", error);
+        res.status(500).json({ message: "Failed to track time" });
     }
 });
 
@@ -426,7 +580,7 @@ router.post("/:id/cancel", authenticateUser, async (req: any, res) => {
 
         const { data: userTask } = await req.supabaseAdmin
             .from('user_tasks')
-            .select('*')
+            .select('*, task:tasks(*)')
             .eq('id', userTaskId)
             .single();
 
@@ -440,16 +594,26 @@ router.post("/:id/cancel", authenticateUser, async (req: any, res) => {
 
         await req.supabaseAdmin
             .from('user_tasks')
-            .update({ status: 'cancelled' })
+            .update({ status: 'cancelled', updated_at: new Date().toISOString() })
             .eq('id', userTaskId);
 
-        // Penalize rating
-        const { data: user } = await req.supabaseAdmin.from('users').select('rating').eq('id', userId).single();
-        if (user) {
-            await req.supabaseAdmin.from('users').update({ rating: Math.max(0, (user.rating || 100) - 2) }).eq('id', userId);
+        // If this was a project task, restore participant count on parent task and reactivate if full
+        if (userTask.task?.task_type === 'project') {
+            const current = userTask.task.current_participants || 0;
+            const newCount = Math.max(0, current - 1);
+            await req.supabaseAdmin
+                .from('tasks')
+                .update({
+                    current_participants: newCount,
+                    is_active: true
+                })
+                .eq('id', userTask.task_id);
         }
 
-        res.json({ success: true, message: "Task cancelled" });
+        // Recalculate user completion rate (cancellation decreases success rate)
+        await storage.updateUserStats(req.supabaseAdmin, userId);
+
+        res.json({ success: true, message: "Task cancelled and completion rate updated" });
     } catch (error) {
         res.status(500).json({ message: "Failed to cancel task" });
     }

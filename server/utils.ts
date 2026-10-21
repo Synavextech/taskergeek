@@ -68,6 +68,7 @@ export function getTierLimits(tier: string): { dailyTasks: number; categories: s
     diamond: { dailyTasks: 15, categories: ['main', 'social', 'surveys'] },
     gold: { dailyTasks: 20, categories: ['main', 'social', 'surveys', 'testing'] },
     vip: { dailyTasks: 25, categories: ['main', 'social', 'surveys', 'testing', 'ai'] },
+    universal: { dailyTasks: 50, categories: ['main', 'social', 'surveys', 'testing', 'ai', 'app'] },
     premium: { dailyTasks: 999, categories: ['main', 'social', 'surveys', 'testing', 'ai', 'app'] },
   };
 
@@ -75,7 +76,7 @@ export function getTierLimits(tier: string): { dailyTasks: number; categories: s
 }
 
 export function canAccessTask(userTier: string, taskTier: string): boolean {
-  const tierOrder = ['member', 'silver', 'bronze', 'diamond', 'gold', 'vip', 'premium'];
+  const tierOrder = ['member', 'silver', 'bronze', 'diamond', 'gold', 'vip', 'universal', 'premium'];
   const userTierIndex = tierOrder.indexOf(userTier);
   const taskTierIndex = tierOrder.indexOf(taskTier);
 
@@ -178,7 +179,25 @@ export function getConfigBoolean(key: string, defaultValue: boolean = false): bo
   return defaultValue;
 }
 
-// User rating calculation function (1-100 scale)
+// Completion / Success rate calculation function (0-100 scale)
+// Enforced automatically based on tasks stats: increases on approval, reduces on cancellation/rejection
+export function calculateCompletionRate(tasksApproved: number, tasksRejected: number, tasksCancelled: number): number {
+  const totalHandled = tasksApproved + tasksRejected + tasksCancelled;
+  if (totalHandled === 0) return 100; // New users start with 100% completion rate
+  return Math.round((tasksApproved / totalHandled) * 100);
+}
+
+// User quality rating calculation function (0.00 - 5.00 scale)
+// Represents the quality of tasks submitted after completion - rated by admin on task review
+export function calculateQualityRating(ratings: number[]): number {
+  if (!ratings || ratings.length === 0) return 5.0; // New users start with 5.0 quality rating
+  const validRatings = ratings.filter(r => typeof r === 'number' && !isNaN(r) && r >= 0 && r <= 5);
+  if (validRatings.length === 0) return 5.0;
+  const sum = validRatings.reduce((acc, curr) => acc + curr, 0);
+  return Number((sum / validRatings.length).toFixed(2));
+}
+
+// User rating calculation function (1-100 scale) - backwards compatible alias
 export function calculateUserRating(tasksApproved: number, tasksCompleted: number): number {
   if (tasksCompleted === 0) return 100; // New users start with 100% rating
   return Math.round((tasksApproved / tasksCompleted) * 100);

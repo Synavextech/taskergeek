@@ -30,7 +30,10 @@ import {
   LogOut,
   ArrowRight,
   Sparkles,
+  Briefcase,
+  Layers,
 } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { FriendsManagement } from "@/components/FriendsManagement";
 import { useLocation } from "wouter";
 
@@ -78,6 +81,44 @@ export default function Profile() {
       return res.json();
     }
   });
+
+  const { data: userTasks } = useQuery<any[]>({
+    queryKey: ['/api/tasks/user-tasks', user?.id],
+    queryFn: async () => {
+      const res = await fetch('/api/tasks/user-tasks', { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!user?.id,
+  });
+
+  const completedOrders = (userTasks || []).filter((ut: any) =>
+    ['approved', 'completed'].includes(ut.status)
+  );
+  const totalCompletedCount = completedOrders.length;
+
+  const categoryMetaMap: Record<string, { name: string; icon: string; color: string }> = {
+    ai: { name: "AI Training", icon: "🤖", color: "bg-purple-500" },
+    testing: { name: "App & Web Testing", icon: "⚙️", color: "bg-blue-500" },
+    surveys: { name: "Surveys & Polls", icon: "📊", color: "bg-emerald-500" },
+    social: { name: "Social Engagement", icon: "👥", color: "bg-amber-500" },
+    app: { name: "Application Tasks", icon: "📱", color: "bg-cyan-500" },
+    main: { name: "Core Verification", icon: "📋", color: "bg-teal-500" },
+  };
+
+  const categoryBreakdown = Object.keys(categoryMetaMap).map((cat) => {
+    const count = completedOrders.filter((ut: any) => (ut.task?.category || 'main') === cat).length;
+    const percentage = totalCompletedCount > 0 ? Math.round((count / totalCompletedCount) * 100) : 0;
+    return {
+      cat,
+      count,
+      percentage,
+      ...categoryMetaMap[cat],
+    };
+  });
+
+  const standardOrdersCount = completedOrders.filter((ut: any) => (ut.task?.task_type || 'standard') === 'standard').length;
+  const projectOrdersCount = completedOrders.filter((ut: any) => ut.task?.task_type === 'project').length;
 
   const referralLink = referralStats?.referralCode
     ? `${window.location.origin}/auth?ref=${referralStats.referralCode}`
@@ -204,6 +245,7 @@ export default function Profile() {
     diamond: "💎",
     gold: "🏅",
     vip: "💰",
+    universal: "🌐",
     premium: "👑",
   };
 
@@ -423,26 +465,138 @@ export default function Profile() {
 
         {/* Right Column: Performance KPIs, Referral & Security */}
         <div className="space-y-6">
-          {/* Quality Acceptance Score */}
+          {/* Dual Rating Cards: Quality Score & Completion Rate */}
           <Card className="rounded-3xl border-border/60 bg-card p-6 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <span className="font-bold text-sm text-foreground flex items-center gap-2">
-                <Star className="w-4 h-4 text-amber-500" />
+                <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
                 Quality Rating
               </span>
               <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 text-xs font-bold">
-                {user?.rating ?? 100}%
+                {user?.quality_rating !== undefined && user?.quality_rating !== null ? Number(user.quality_rating).toFixed(1) : '5.0'} / 5.0 ★
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Acceptance ratios above 80% guarantee ongoing qualification for high-rate projects and fast-track review.
+              Assessed directly by review administrators on submitted task deliverables (scale of 0–5 stars).
             </p>
             <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
               <div
-                className="bg-accent h-2.5 rounded-full transition-all"
-                style={{ width: `${Math.min(100, Math.max(0, user?.rating ?? 100))}%` }}
+                className="bg-amber-500 h-2.5 rounded-full transition-all"
+                style={{ width: `${Math.min(100, Math.max(0, ((user?.quality_rating !== undefined && user?.quality_rating !== null ? Number(user.quality_rating) : 5.0) / 5) * 100))}%` }}
               />
             </div>
+          </Card>
+
+          <Card className="rounded-3xl border-border/60 bg-card p-6 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-sm text-foreground flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                Completion Rate
+              </span>
+              <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-xs font-bold">
+                {user?.completion_rate ?? user?.rating ?? 100}%
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Percentage of claimed tasks approved vs rejected or cancelled. Ratios above 80% maintain access to high-rate projects.
+            </p>
+            <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
+              <div
+                className="bg-emerald-500 h-2.5 rounded-full transition-all"
+                style={{ width: `${Math.min(100, Math.max(0, user?.completion_rate ?? user?.rating ?? 100))}%` }}
+              />
+            </div>
+          </Card>
+
+          {/* Orders Completed Breakdown by Category & Type */}
+          <Card className="rounded-3xl border-border/60 bg-card p-6 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-sm text-foreground flex items-center gap-2">
+                <Briefcase className="w-4 h-4 text-accent" />
+                Orders Completed
+              </span>
+              <Badge className="bg-accent/15 text-accent border-accent/30 text-xs font-bold">
+                {totalCompletedCount} {totalCompletedCount === 1 ? 'Order' : 'Orders'} Completed
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Distribution of verified deliverable completions based on discipline category and project type.
+            </p>
+
+            <Tabs defaultValue="category" className="w-full pt-1">
+              <TabsList className="grid w-full grid-cols-2 rounded-2xl h-9 bg-muted/60 p-0.5">
+                <TabsTrigger value="category" className="rounded-xl text-xs font-semibold data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm">
+                  By Category ({categoryBreakdown.filter(c => c.count > 0).length})
+                </TabsTrigger>
+                <TabsTrigger value="type" className="rounded-xl text-xs font-semibold data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm">
+                  By Type
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="category" className="pt-3 space-y-2.5">
+                {categoryBreakdown.map((item) => (
+                  <div key={item.cat} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-foreground flex items-center gap-1.5">
+                        <span>{item.icon}</span>
+                        <span>{item.name}</span>
+                      </span>
+                      <span className="font-bold text-muted-foreground">
+                        {item.count} <span className="text-[10px] text-muted-foreground/70 font-normal">({item.percentage}%)</span>
+                      </span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className={`${item.color} h-1.5 rounded-full transition-all duration-300`}
+                        style={{ width: `${item.percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </TabsContent>
+
+              <TabsContent value="type" className="pt-3 space-y-3">
+                <div className="p-3.5 rounded-2xl border border-border/50 bg-muted/20 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-foreground flex items-center gap-1.5">
+                      <span>📋</span> Standard Micro-Tasks
+                    </span>
+                    <Badge variant="outline" className="text-xs font-bold">
+                      {standardOrdersCount} Completed
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Fixed-reward tasks including surveys, verification, testing briefs, and data purification.
+                  </p>
+                  <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-accent h-1.5 rounded-full transition-all duration-300"
+                      style={{ width: `${totalCompletedCount > 0 ? Math.round((standardOrdersCount / totalCompletedCount) * 100) : 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-2xl border border-border/50 bg-muted/20 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-foreground flex items-center gap-1.5">
+                      <span>⏱️</span> Hourly Project Workspaces
+                    </span>
+                    <Badge variant="outline" className="text-xs font-bold">
+                      {projectOrdersCount} Completed
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    In-depth hourly projects with interactive workspace sections and time tracking.
+                  </p>
+                  <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-purple-500 h-1.5 rounded-full transition-all duration-300"
+                      style={{ width: `${totalCompletedCount > 0 ? Math.round((projectOrdersCount / totalCompletedCount) * 100) : 0}%` }}
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
           </Card>
 
           {/* Referral Commission Card */}

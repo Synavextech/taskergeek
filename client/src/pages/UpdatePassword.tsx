@@ -41,7 +41,30 @@ export default function UpdatePassword() {
           return;
         }
 
-        // 2. Check existing session
+        // 2. Check for PKCE code in query parameters and exchange for session
+        const code = urlParams.get('code');
+        if (code) {
+          console.log('[PASSWORD_RESET] Exchanging PKCE code for recovery session...');
+          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeError) {
+            console.error('[PASSWORD_RESET] Code exchange error:', exchangeError);
+            if (isMounted) {
+              setError(exchangeError.message || "Failed to validate reset code. Please request a fresh link.");
+              setSessionLoading(false);
+            }
+            return;
+          }
+
+          if (data?.session && isMounted) {
+            console.log('[PASSWORD_RESET] PKCE code exchange succeeded for:', data.session.user.email);
+            setRecoverySession(true);
+            setSessionLoading(false);
+            setError(null);
+            return;
+          }
+        }
+
+        // 3. Check existing session
         const { data: { session } } = await supabase.auth.getSession();
 
         if (session && isMounted) {

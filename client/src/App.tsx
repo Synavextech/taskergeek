@@ -15,6 +15,7 @@ import ResetPassword from "@/pages/ResetPassword";
 import UpdatePassword from "@/pages/UpdatePassword";
 import VerifyEmail from "@/pages/VerifyEmail";
 import { Orientation } from "@/pages/Orientation";
+import GrammarTest from "@/pages/GrammarTest";
 import SkillUpgrade from "@/pages/SkillUpgrade";
 import SkillUpgradeSuccess from "@/pages/SkillUpgradeSuccess";
 import Home from "@/pages/Home";
@@ -43,6 +44,20 @@ function AppRouter() {
   // Determine if on standalone authentication pages to ensure proper viewport fitting
   const isAuthFlowRoute = ['/auth', '/reset-password', '/update-password', '/auth/verify-email', '/waiting-approval', '/suspended', '/terminated'].includes(location);
 
+  // Intercept PKCE auth recovery code from URL query string if landing on non-update-password route
+  React.useEffect(() => {
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const code = searchParams.get('code');
+      if (code && !location.startsWith('/update-password')) {
+        console.log('[ROUTER] Intercepted recovery code on route:', location, 'Redirecting to /update-password');
+        setLocation(`/update-password?code=${encodeURIComponent(code)}`);
+      }
+    } catch (e) {
+      // Ignore
+    }
+  }, [location, setLocation]);
+
   // Simplified status checks
   const isAdmin = user?.role === 'admin';
   const hasFullAccess = user && user.skill_upgrade_tier && user.approval_status === 'approved';
@@ -63,6 +78,7 @@ function AppRouter() {
 
         {/* Authentication flow routes - always accessible to prevent 404s */}
         <Route path="/orientation" component={() => <Layout><Orientation /></Layout>} />
+        <Route path="/grammar-test" component={() => <Layout><GrammarTest /></Layout>} />
         <Route path="/auth/verify-email" component={VerifyEmail} />
         <Route path="/skill-upgrade" component={() => <Layout><SkillUpgrade /></Layout>} />
         <Route path="/skill-upgrade-success" component={() => <Layout><SkillUpgradeSuccess /></Layout>} />

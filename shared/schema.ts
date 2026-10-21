@@ -6,7 +6,7 @@ export interface DatabaseUser {
   country?: string; // [NEW] Country field
   gender?: string;
   role: 'user' | 'admin';
-  skill_upgrade_tier?: 'member' | 'silver' | 'bronze' | 'diamond' | 'gold' | 'vip';
+  skill_upgrade_tier?: 'member' | 'silver' | 'bronze' | 'diamond' | 'gold' | 'vip' | 'universal';
   skill_upgrade_expiry?: string;
   referral_code?: string;
   referred_by?: string;
@@ -14,6 +14,8 @@ export interface DatabaseUser {
   approval_status: 'pending' | 'approved' | 'rejected';
   pending_verification: boolean;
   orientation_complete: boolean;
+  grammar_test_attempts?: number;
+  grammar_test_passed?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -26,7 +28,7 @@ export interface DatabaseTask {
   category: 'main' | 'social' | 'surveys' | 'testing' | 'ai' | 'app'; // Added 'app' from json
   url?: string;
   reward: string | number; // JSON has numbers
-  min_tier: 'member' | 'silver' | 'bronze' | 'diamond' | 'gold' | 'vip';
+  min_tier: 'member' | 'silver' | 'bronze' | 'diamond' | 'gold' | 'vip' | 'universal';
   is_active: boolean;
   is_orientation: boolean;
   created_at: string;
@@ -36,7 +38,7 @@ export interface DatabaseUserTask {
   id: number;
   user_id: string; // UUID from Supabase auth.users
   task_id: number;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'claimed' | 'revision_requested' | 'cancelled' | 'submitted';
   rejection_reason?: string;
   created_at: string;
 }
@@ -96,7 +98,7 @@ export interface DatabaseOrder {
   amount: string;
   currency: string;
   status: 'pending' | 'completed' | 'failed' | 'refunded';
-  skill_upgrade_tier: 'member' | 'silver' | 'bronze' | 'diamond' | 'gold' | 'vip';
+  skill_upgrade_tier: 'member' | 'silver' | 'bronze' | 'diamond' | 'gold' | 'vip' | 'universal';
   metadata?: any;
   created_at: string;
   updated_at: string;
