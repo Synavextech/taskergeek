@@ -185,7 +185,7 @@ export function ProjectWorkspace({ userTask, onSubmitted, onCancel }: ProjectWor
           {/* Project Title & Badge */}
           <div className="space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <Badge className="bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30 font-bold text-xs">
+              <Badge className="bg-accent/15 text-accent border border-accent/30 font-bold text-xs">
                 ⏱️ Hourly Project Workspace
               </Badge>
               <Badge variant="outline" className="font-semibold text-xs">

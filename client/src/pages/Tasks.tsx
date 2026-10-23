@@ -103,7 +103,7 @@ const taskCategories = [
     icon: "🤖",
     description: "Train frontier AI models via reasoning validation, RLHF, and prompt-response ranking.",
     minTier: "vip",
-    badgeClass: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30",
+    badgeClass: "bg-accent/15 text-accent border-accent/30",
   },
   {
     id: "testing",

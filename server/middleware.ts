@@ -203,7 +203,7 @@ export const accountRateLimit = (req: Request, res: Response, next: NextFunction
     return res.status(429).json({
       success: false,
       error: {
-        message: `Account temporarily locked due to multiple failed attempts. Please try again in ${minutesLeft} minute(s).`,
+        message: `Account temporarily locked due to 3 failed login attempts. Please try again in ${minutesLeft} minute(s) or reset your password.`,
         code: 'ACCOUNT_LOCKED'
       },
       timestamp: new Date().toISOString()
@@ -213,17 +213,18 @@ export const accountRateLimit = (req: Request, res: Response, next: NextFunction
   next();
 };
 
-export const recordAccountAuthFailure = (email: string) => {
-  if (!email) return;
+export const recordAccountAuthFailure = (email: string): number => {
+  if (!email) return 0;
   const key = email.toLowerCase().trim();
   const record = accountFailureCache.get(key) || { count: 0, lockedUntil: 0 };
   record.count += 1;
 
-  // Lock out account for 15 minutes after 5 consecutive failures
-  if (record.count >= 5) {
+  // Lock out account for 15 minutes after 3 consecutive failures
+  if (record.count >= 3) {
     record.lockedUntil = Date.now() + 15 * 60 * 1000;
   }
   accountFailureCache.set(key, record);
+  return record.count;
 };
 
 export const clearAccountAuthFailure = (email: string) => {

@@ -157,7 +157,7 @@ const DISCIPLINES: DisciplineItem[] = [
     rate: "$42 - $58 / hr",
     description: "Assess scientific validity in biochemistry, pharmacology, genetics, and molecular biology. Validate clinical reasoning benchmarks.",
     skills: ["Biochemistry", "Molecular Biology", "Clinical Reasoning", "Physics"],
-    icon: <Microscope className="w-5 h-5 text-purple-500" />,
+    icon: <Microscope className="w-5 h-5 text-accent" />,
   },
   {
     id: "safety",
@@ -497,11 +497,10 @@ export default function SkillUpgrade() {
               setIsAssessmentOpen(false);
               setIsHourlyTestOpen(false);
             }}
-            className={`flex-1 flex items-center justify-center gap-3 p-4 rounded-2xl border transition-all text-left ${
-              activeTab === "assessment"
+            className={`flex-1 flex items-center justify-center gap-3 p-4 rounded-2xl border transition-all text-left ${activeTab === "assessment"
                 ? "bg-accent text-accent-foreground border-accent shadow-md ring-2 ring-accent/30 font-bold"
                 : "bg-card/70 hover:bg-card border-border/70 text-muted-foreground hover:text-foreground font-semibold"
-            }`}
+              }`}
           >
             <div className={`p-2 rounded-xl ${activeTab === "assessment" ? "bg-black/20" : "bg-muted"}`}>
               <GraduationCap className="w-5 h-5" />
@@ -525,11 +524,10 @@ export default function SkillUpgrade() {
               setIsAssessmentOpen(false);
               setIsHourlyTestOpen(false);
             }}
-            className={`flex-1 flex items-center justify-center gap-3 p-4 rounded-2xl border transition-all text-left ${
-              activeTab === "training"
+            className={`flex-1 flex items-center justify-center gap-3 p-4 rounded-2xl border transition-all text-left ${activeTab === "training"
                 ? "bg-accent text-accent-foreground border-accent shadow-md ring-2 ring-accent/30 font-bold"
                 : "bg-card/70 hover:bg-card border-border/70 text-muted-foreground hover:text-foreground font-semibold"
-            }`}
+              }`}
           >
             <div className={`p-2 rounded-xl ${activeTab === "training" ? "bg-black/20" : "bg-muted"}`}>
               <CreditCard className="w-5 h-5" />
@@ -555,11 +553,11 @@ export default function SkillUpgrade() {
       {activeTab === "assessment" && (
         <div className="space-y-8 animate-fade-in">
           {/* Section 1: Independent Hourly Rate Tasks Qualification */}
-          <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-card via-card to-purple-500/10 border border-purple-500/30 shadow-sm space-y-4">
+          <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-card via-card to-accent/10 border border-accent/30 shadow-sm space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Badge className="bg-purple-600 text-white font-bold text-xs">
+                  <Badge className="bg-accent text-accent-foreground font-bold text-xs">
                     Independent Track
                   </Badge>
                   <h3 className="text-xl sm:text-2xl font-black text-foreground">
@@ -579,7 +577,7 @@ export default function SkillUpgrade() {
                 ) : (
                   <Button
                     onClick={handleStartHourlyTest}
-                    className="w-full sm:w-auto h-12 px-6 rounded-2xl font-bold bg-purple-600 hover:bg-purple-500 text-white text-xs sm:text-sm shadow-md"
+                    className="w-full sm:w-auto h-12 px-6 rounded-2xl font-bold bg-accent hover:bg-accent/90 text-accent-foreground text-xs sm:text-sm shadow-md"
                   >
                     <Timer className="w-4 h-4 mr-2" /> Take 15-Question Hourly Test
                   </Button>
@@ -590,10 +588,10 @@ export default function SkillUpgrade() {
 
           {/* Active Hourly Test View */}
           {isHourlyTestOpen && (
-            <Card className="rounded-3xl border-purple-500/40 bg-card p-6 sm:p-8 shadow-lg space-y-6 animate-fade-in">
+            <Card className="rounded-3xl border-accent/40 bg-card p-6 sm:p-8 shadow-lg space-y-6 animate-fade-in">
               <div className="flex items-center justify-between border-b border-border/50 pb-4">
                 <div>
-                  <Badge className="bg-purple-600 text-white font-bold text-xs">
+                  <Badge className="bg-accent text-accent-foreground font-bold text-xs">
                     Hourly Qualification Assessment
                   </Badge>
                   <h3 className="text-xl font-black text-foreground mt-1">
@@ -611,11 +609,10 @@ export default function SkillUpgrade() {
               </div>
 
               {hourlyResult ? (
-                <div className={`p-6 rounded-2xl border text-center space-y-4 ${
-                  hourlyResult.passed
+                <div className={`p-6 rounded-2xl border text-center space-y-4 ${hourlyResult.passed
                     ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
                     : "bg-destructive/10 border-destructive/30 text-destructive"
-                }`}>
+                  }`}>
                   <div className="w-16 h-16 rounded-2xl bg-card mx-auto flex items-center justify-center text-3xl shadow-sm">
                     {hourlyResult.passed ? "🎉" : "⚠️"}
                   </div>
@@ -653,7 +650,7 @@ export default function SkillUpgrade() {
                       return (
                         <div key={q.id} className="p-4 sm:p-5 rounded-2xl bg-muted/40 border border-border/60 space-y-3">
                           <div className="flex items-center gap-2">
-                            <span className="w-6 h-6 rounded-lg bg-purple-500/20 text-purple-600 dark:text-purple-400 font-bold text-xs flex items-center justify-center">
+                            <span className="w-6 h-6 rounded-lg bg-accent/15 text-accent font-bold text-xs flex items-center justify-center">
                               {idx + 1}
                             </span>
                             <span className="text-xs text-muted-foreground font-semibold uppercase">Question {idx + 1} of 15</span>
@@ -664,11 +661,10 @@ export default function SkillUpgrade() {
                               <div
                                 key={optIdx}
                                 onClick={() => setHourlyAnswers(prev => ({ ...prev, [q.id]: optIdx }))}
-                                className={`p-3 rounded-xl border text-xs cursor-pointer transition-all flex items-start gap-2.5 ${
-                                  selected === optIdx
-                                    ? "bg-purple-600 text-white border-purple-600 font-semibold shadow-sm"
+                                className={`p-3 rounded-xl border text-xs cursor-pointer transition-all flex items-start gap-2.5 ${selected === optIdx
+                                    ? "bg-accent text-accent-foreground border-accent font-semibold shadow-sm"
                                     : "bg-card hover:bg-muted border-border/50 text-foreground/80"
-                                }`}
+                                  }`}
                               >
                                 <span className="font-bold">{String.fromCharCode(65 + optIdx)}.</span>
                                 <span>{opt}</span>
@@ -687,7 +683,7 @@ export default function SkillUpgrade() {
                     <Button
                       onClick={handleSubmitHourlyTest}
                       disabled={isSubmittingHourly || Object.keys(hourlyAnswers).length < hourlyQuestions.length}
-                      className="rounded-xl font-bold bg-purple-600 hover:bg-purple-500 text-white px-8"
+                      className="rounded-xl font-bold bg-accent hover:bg-accent/90 text-accent-foreground px-8"
                     >
                       {isSubmittingHourly ? "Evaluating..." : "Submit Hourly Qualification"}
                     </Button>
@@ -716,11 +712,10 @@ export default function SkillUpgrade() {
                   <Card
                     key={item.id}
                     onClick={() => setActiveDiscipline(item.id)}
-                    className={`rounded-3xl p-6 border transition-all duration-300 cursor-pointer flex flex-col justify-between ${
-                      isSelected
+                    className={`rounded-3xl p-6 border transition-all duration-300 cursor-pointer flex flex-col justify-between ${isSelected
                         ? "border-accent ring-2 ring-accent/30 bg-accent/5 shadow-md"
                         : "border-border/60 bg-card hover:border-accent/40"
-                    }`}
+                      }`}
                   >
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
@@ -754,11 +749,10 @@ export default function SkillUpgrade() {
                           handleStartDisciplineAssessment(item.id);
                         }}
                         variant={isSelected ? "default" : "outline"}
-                        className={`w-full rounded-xl text-xs font-bold h-10 ${
-                          isSelected
+                        className={`w-full rounded-xl text-xs font-bold h-10 ${isSelected
                             ? "bg-accent hover:bg-accent/90 text-accent-foreground"
                             : "hover:border-accent hover:text-accent"
-                        }`}
+                          }`}
                       >
                         Launch 2-Section Assessment
                       </Button>
@@ -843,11 +837,10 @@ export default function SkillUpgrade() {
                                 <div
                                   key={optIdx}
                                   onClick={() => setMcqAnswers(prev => ({ ...prev, [q.id]: optIdx }))}
-                                  className={`p-3.5 rounded-xl border text-xs cursor-pointer transition-all flex items-start gap-2.5 ${
-                                    selected === optIdx
+                                  className={`p-3.5 rounded-xl border text-xs cursor-pointer transition-all flex items-start gap-2.5 ${selected === optIdx
                                       ? "bg-accent text-accent-foreground font-bold border-accent shadow-sm"
                                       : "bg-card hover:bg-muted border-border/50 text-foreground/85"
-                                  }`}
+                                    }`}
                                 >
                                   <span className="font-mono font-bold">{String.fromCharCode(65 + optIdx)}.</span>
                                   <span>{opt}</span>
@@ -863,12 +856,12 @@ export default function SkillUpgrade() {
                   {/* SECTION 2: 10 WRITTEN QUESTIONS (1500 - 5000 WORDS, NO PASTE) */}
                   <div className="space-y-6">
                     <div className="flex items-center gap-3 border-b border-border/40 pb-3">
-                      <span className="w-8 h-8 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 font-black text-sm flex items-center justify-center">
+                      <span className="w-8 h-8 rounded-xl bg-accent/15 text-accent font-black text-sm flex items-center justify-center">
                         2
                       </span>
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-lg font-bold text-foreground">Section 2: Rigorous Written Exposition (10 Questions)</h3>
+                          <h3 className="text-lg font-bold text-foreground">Section 2: Written Exposition (10 Questions)</h3>
                           <Badge variant="outline" className="text-destructive border-destructive/40 text-[10px] font-bold">
                             Copy & Paste Disabled
                           </Badge>
@@ -891,18 +884,17 @@ export default function SkillUpgrade() {
                           <div key={q.id} className="p-5 sm:p-6 rounded-2xl bg-card border border-border/70 space-y-3 shadow-sm">
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex items-start gap-2">
-                                <span className="text-xs font-bold text-purple-600 dark:text-purple-400 mt-0.5">Prompt {idx + 1}.</span>
+                                <span className="text-xs font-bold text-accent mt-0.5">Prompt {idx + 1}.</span>
                                 <p className="text-sm font-bold text-foreground leading-relaxed">{q.question}</p>
                               </div>
                               <div className="shrink-0">
                                 <Badge
-                                  className={`text-[11px] font-bold ${
-                                    isValidLength
+                                  className={`text-[11px] font-bold ${isValidLength
                                       ? "bg-emerald-500 text-white"
                                       : words > max
-                                      ? "bg-destructive text-destructive-foreground"
-                                      : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
-                                  }`}
+                                        ? "bg-destructive text-destructive-foreground"
+                                        : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                                    }`}
                                 >
                                   {words.toLocaleString()} / {min.toLocaleString()} words
                                 </Badge>
@@ -980,17 +972,16 @@ export default function SkillUpgrade() {
                   <Card
                     key={plan.id}
                     onClick={() => setSelectedPlan(plan.id)}
-                    className={`relative cursor-pointer transition-all duration-300 rounded-3xl p-6 flex flex-col justify-between border ${
-                      plan.isUniversal
+                    className={`relative cursor-pointer transition-all duration-300 rounded-3xl p-6 flex flex-col justify-between border ${plan.isUniversal
                         ? isSelected
-                          ? "border-purple-500 ring-2 ring-purple-500/40 bg-purple-500/10 shadow-lg shadow-purple-500/10"
-                          : "border-purple-500/40 bg-gradient-to-b from-card to-purple-500/5 hover:border-purple-500"
+                          ? "border-accent ring-2 ring-accent/40 bg-accent/10 shadow-lg shadow-accent/10"
+                          : "border-accent/40 bg-gradient-to-b from-card to-accent/5 hover:border-accent"
                         : isSelected
-                        ? "border-accent ring-2 ring-accent/30 bg-accent/5 shadow-md"
-                        : isCurrentTier
-                        ? "border-emerald-500/50 bg-emerald-500/5"
-                        : "border-border/60 bg-card hover:border-accent/40 hover:shadow-sm"
-                    }`}
+                          ? "border-accent ring-2 ring-accent/30 bg-accent/5 shadow-md"
+                          : isCurrentTier
+                            ? "border-emerald-500/50 bg-emerald-500/5"
+                            : "border-border/60 bg-card hover:border-accent/40 hover:shadow-sm"
+                      }`}
                   >
                     {plan.popular && (
                       <div className="absolute -top-3 left-1/2 -translate-x-1/2">
@@ -1002,7 +993,7 @@ export default function SkillUpgrade() {
 
                     {plan.isUniversal && (
                       <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                        <Badge className="bg-purple-600 text-white font-black text-[11px] shadow-sm">
+                        <Badge className="bg-accent text-accent-foreground font-black text-[11px] shadow-sm">
                           Integrated Projects Tier
                         </Badge>
                       </div>
@@ -1019,9 +1010,7 @@ export default function SkillUpgrade() {
 
                       <div>
                         <h3 className="text-lg font-bold text-foreground">{plan.name}</h3>
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold mt-1 ${
-                          plan.isUniversal ? "bg-purple-500/20 text-purple-600 dark:text-purple-400 font-bold" : "bg-accent/15 text-accent"
-                        }`}>
+                        <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold mt-1 bg-accent/15 text-accent">
                           {plan.linksPerDay}
                         </span>
                       </div>
@@ -1038,11 +1027,10 @@ export default function SkillUpgrade() {
                           {plan.disciplines.map((d, i) => (
                             <span
                               key={i}
-                              className={`text-[10px] font-medium px-2 py-0.5 rounded-md ${
-                                plan.isUniversal && d.includes("Project")
-                                  ? "bg-purple-500/20 text-purple-600 dark:text-purple-400 font-bold"
+                              className={`text-[10px] font-medium px-2 py-0.5 rounded-md ${plan.isUniversal && d.includes("Project")
+                                  ? "bg-accent/15 text-accent font-bold"
                                   : "bg-muted text-foreground/80"
-                              }`}
+                                }`}
                             >
                               ✓ {d}
                             </span>
@@ -1054,13 +1042,10 @@ export default function SkillUpgrade() {
                     <div className="pt-6">
                       <Button
                         variant={isSelected ? "default" : "outline"}
-                        className={`w-full rounded-xl text-xs font-bold h-11 ${
-                          plan.isUniversal && isSelected
-                            ? "bg-purple-600 hover:bg-purple-500 text-white"
-                            : isSelected
+                        className={`w-full rounded-xl text-xs font-bold h-11 ${isSelected
                             ? "bg-accent hover:bg-accent/90 text-accent-foreground"
                             : "hover:border-accent hover:text-accent"
-                        }`}
+                          }`}
                       >
                         {isSelected ? (
                           <span className="flex items-center gap-1.5">

@@ -16,7 +16,7 @@ export default function FAQ() {
     const faqCategories = [
         {
             title: "Getting Started",
-            icon: <Rocket className="w-5 h-5 text-purple-500" />,
+            icon: <Rocket className="w-5 h-5 text-accent" />,
             items: [
                 {
                     question: "How do I start earning money?",

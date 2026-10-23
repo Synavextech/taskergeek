@@ -21,6 +21,7 @@ import {
 import { generateReferralCode } from "../utils";
 import { anomalyDetector } from "../services/anomalyDetector";
 import { securityService } from "../services/securityService";
+import { emailService } from "../email";
 
 import { createAnonClient } from "../supabase";
 
@@ -647,9 +648,50 @@ router.post('/login', authRateLimit, accountRateLimit, asyncHandler(async (req: 
         if (signInError?.message?.toLowerCase().includes('email not confirmed')) {
             throw new AppError('Please confirm your email address before logging in. A confirmation link has been sent to your inbox.', 403, 'EMAIL_NOT_CONFIRMED');
         }
-        recordAccountAuthFailure(email);
+        const failCount = recordAccountAuthFailure(email);
         anomalyDetector.recordFailure(email, clientIp);
-        throw new AppError('Invalid credentials', 401, 'AUTH_INVALID');
+
+        // Record security alert and notify user
+        try {
+            const { data: targetUser } = await req.supabaseAdmin
+                .from('users')
+                .select('id, name, email')
+                .eq('email', email.toLowerCase().trim())
+                .maybeSingle();
+
+            if (targetUser) {
+                if (failCount >= 3) {
+                    await storage.createNotification(req.supabaseAdmin, {
+                        user_id: targetUser.id,
+                        title: "Account Temporarily Locked",
+                        message: "Your account has been temporarily locked for 15 minutes due to 3 consecutive failed login attempts. If this was not you, please reset your password immediately.",
+                        type: "system",
+                        is_read: false
+                    });
+                } else {
+                    await storage.createNotification(req.supabaseAdmin, {
+                        user_id: targetUser.id,
+                        title: "Failed Login Attempt Alert",
+                        message: `Failed login attempt (${failCount}/3) detected from IP ${clientIp}. Your account will be temporarily locked after 3 failed attempts.`,
+                        type: "system",
+                        is_read: false
+                    });
+                }
+
+                emailService.sendFailedLoginAlertEmail(targetUser.email, targetUser.name || "Tasker", failCount, {
+                    ip: clientIp,
+                    device: userAgent
+                });
+            }
+        } catch (alertErr) {
+            console.warn('[AUTH] Failed login alert notice:', alertErr);
+        }
+
+        if (failCount >= 3) {
+            throw new AppError('Account temporarily locked due to 3 failed login attempts. Please try again in 15 minutes or reset your password.', 429, 'ACCOUNT_LOCKED');
+        }
+
+        throw new AppError(`Invalid credentials. Failed attempt ${failCount} of 3.`, 401, 'AUTH_INVALID');
     }
 
     // Explicit check: require email confirmation before allowing login
@@ -682,17 +724,6 @@ router.post('/login', authRateLimit, accountRateLimit, asyncHandler(async (req: 
             userAgent,
             anomalyCheck.reasons
         );
-
-        // Also trigger Supabase Auth OTP delivery so an email is dispatched to the user's inbox
-        try {
-            await req.supabase.auth.signInWithOtp({
-                email: profile.email,
-                options: { shouldCreateUser: false }
-            });
-            console.log(`[SECURITY] Dispatched Supabase security login OTP to ${profile.email}`);
-        } catch (sbOtpErr) {
-            console.warn('[SECURITY] Notice: Supabase signInWithOtp trigger:', sbOtpErr);
-        }
 
         return res.json({
             success: true,

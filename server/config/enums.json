@@ -6,6 +6,6 @@
   "transaction_type": ["earning", "withdrawal", "referral", "skill-upgrade"],
   "transaction_status": ["pending", "completed", "failed"],
   "approval_status": ["pending", "approved", "rejected"],
-  "payment_method": ["paypal"],
+  "payment_method": ["paypal", "payoneer", "airtm", "bank_transfer", "manual"],
   "order_status": ["pending", "completed", "failed", "refunded"]
 }

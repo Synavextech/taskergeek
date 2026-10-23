@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Lock, RefreshCw, Sparkles, BookOpen, ExternalLink, ArrowRight } from "lucide-react";
+import { CheckCircle2, Lock, RefreshCw, Sparkles, BookOpen, ExternalLink, ArrowRight, Clock, Layers, Timer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ComponentLoader } from "@/components/LoadingSpinner";
@@ -45,7 +45,8 @@ export function Orientation() {
 
       for (const cat of Object.keys(group)) {
         const arr = group[cat];
-        const picks = arr.length <= 2 ? arr : arr.slice(0, 2);
+        // Present up to 3 samples per category to show both standard and project tasks
+        const picks = arr.length <= 3 ? arr : arr.slice(0, 3);
         byCat[cat] = picks;
       }
 
@@ -141,7 +142,7 @@ export function Orientation() {
               Orientation & Benchmark Review
             </h1>
             <p className="text-sm text-muted-foreground max-w-2xl leading-relaxed">
-              Examine the sample tasks below to understand our quality benchmarks, deliverable expectations, and payout criteria across each platform category.
+              Review sample benchmarks below to understand deliverable standards, rubrics, and payout calculations across standard fixed tasks and project-based hourly workspaces.
             </p>
           </div>
 
@@ -155,6 +156,22 @@ export function Orientation() {
           </Button>
         </div>
 
+        {/* Project Workspaces & UniversalGeek Guide Callout */}
+        <div className="mt-6 p-4 rounded-2xl bg-muted/40 border border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="space-y-1">
+            <span className="font-bold text-foreground flex items-center gap-1.5">
+              <Timer className="w-3.5 h-3.5 text-accent" />
+              Dual Task Structure: Standard Tasks & Project-Based Workspaces
+            </span>
+            <p className="text-muted-foreground">
+              Standard tasks offer fixed payouts upon submission approval. Project-based tasks (available via UniversalGeek or Hourly Qualification) feature real-time active working time tracking with compensation calculated strictly per verified second.
+            </p>
+          </div>
+          <Badge className="bg-accent/15 text-accent border border-accent/30 shrink-0 font-bold self-start sm:self-auto">
+            Universal Platform Standards
+          </Badge>
+        </div>
+
         {isOrientationComplete && (
           <div className="mt-4 p-4 bg-success/15 border border-success/30 text-success rounded-2xl flex items-center gap-3 text-xs sm:text-sm font-semibold">
             <CheckCircle2 className="h-5 w-5 shrink-0" />
@@ -164,7 +181,7 @@ export function Orientation() {
       </div>
 
       {/* Task Samples Grid */}
-      <div className="space-y-6">
+      <div className="space-y-8">
         {loadingTasks ? (
           <div className="p-12 text-center text-muted-foreground text-sm">
             Loading orientation benchmarks...
@@ -177,10 +194,15 @@ export function Orientation() {
               <div key={cat} className="space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                   <div>
-                    <h3 className="text-base font-bold text-foreground capitalize flex items-center gap-2">
-                      <BookOpen className="w-4 h-4 text-accent" />
-                      <span>{catItem.title}</span>
-                    </h3>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-base font-bold text-foreground capitalize flex items-center gap-2">
+                        <BookOpen className="w-4 h-4 text-accent" />
+                        <span>{catItem.title}</span>
+                      </h3>
+                      <Badge variant="outline" className="text-[10px] font-semibold border-accent/30 text-accent">
+                        {catItem.discipline}
+                      </Badge>
+                    </div>
                     <p className="text-xs text-muted-foreground mt-0.5">{catItem.description}</p>
                   </div>
                   <Badge variant="outline" className="text-xs self-start sm:self-auto shrink-0">
@@ -193,40 +215,90 @@ export function Orientation() {
                     Benchmarks active. Review guidelines and continue.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {tasks.map((task) => (
-                      <div
-                        key={task.id}
-                        className="p-5 rounded-2xl border border-border/60 bg-card shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between space-y-3"
-                      >
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="font-mono text-xs text-muted-foreground">#{task.taskId || task.id}</span>
-                            <Badge className="bg-success/15 text-success border-success/30 font-bold text-xs">
-                              ${parseFloat(String(task.reward || task.earning || 0)).toFixed(2)}
-                            </Badge>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {tasks.map((task) => {
+                      const isProject = task.task_type === 'project';
+                      const isUniversal = task.min_tier === 'universal';
+                      const hourlyRateVal = parseFloat(String(task.hourly_rate || 0));
+                      const rewardVal = parseFloat(String(task.reward || task.earning || 0));
+
+                      return (
+                        <div
+                          key={task.id || task.taskId}
+                          className={`p-5 rounded-2xl border bg-card shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between space-y-3 ${
+                            isUniversal
+                              ? "border-accent/50 bg-gradient-to-b from-card to-accent/5"
+                              : isProject
+                                ? "border-accent/40"
+                                : "border-border/60"
+                          }`}
+                        >
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <span className="font-mono text-xs text-muted-foreground">#{task.taskId || task.id}</span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {isUniversal && (
+                                  <Badge className="bg-accent text-accent-foreground font-black text-[10px] shadow-sm">
+                                    🌐 UniversalGeek
+                                  </Badge>
+                                )}
+                                {isProject ? (
+                                  <Badge className="bg-accent/15 text-accent border border-accent/30 font-bold text-xs">
+                                    ${hourlyRateVal > 0 ? hourlyRateVal.toFixed(2) : rewardVal.toFixed(2)}/hr Rate
+                                  </Badge>
+                                ) : (
+                                  <Badge className="bg-success/15 text-success border-success/30 font-bold text-xs">
+                                    ${rewardVal.toFixed(2)} Fixed
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+
+                            <h4 className="font-bold text-sm text-foreground line-clamp-1">{task.title}</h4>
+                            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{task.description}</p>
+
+                            {/* Task Metadata Tags */}
+                            <div className="flex items-center gap-2 pt-1 flex-wrap">
+                              {isProject && (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-accent bg-accent/10 px-2 py-0.5 rounded-md">
+                                  <Timer className="w-3 h-3" />
+                                  <span>Time-Tracked Project</span>
+                                </span>
+                              )}
+                              {task.estimated_duration_minutes && (
+                                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground font-medium">
+                                  <Clock className="w-3 h-3 text-muted-foreground" />
+                                  <span>~{task.estimated_duration_minutes} mins</span>
+                                </span>
+                              )}
+                              {task.project_structure && Array.isArray(task.project_structure) && (
+                                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground font-medium">
+                                  <Layers className="w-3 h-3 text-muted-foreground" />
+                                  <span>{task.project_structure.length} Sections</span>
+                                </span>
+                              )}
+                            </div>
                           </div>
 
-                          <h4 className="font-bold text-sm text-foreground line-clamp-1">{task.title}</h4>
-                          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{task.description}</p>
+                          <div className="pt-3 border-t border-border/40 flex items-center justify-between">
+                            <span className="text-[11px] text-muted-foreground font-medium">
+                              {isProject ? "Project Workspace Brief" : "Sample Specification"}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleCategoryComplete(cat)}
+                              asChild
+                              className="rounded-xl text-xs font-semibold"
+                            >
+                              <a href={task.url || task.link || '#'} target="_blank" rel="noopener noreferrer">
+                                Inspect <ExternalLink className="w-3 h-3 ml-1" />
+                              </a>
+                            </Button>
+                          </div>
                         </div>
-
-                        <div className="pt-3 border-t border-border/40 flex items-center justify-between">
-                          <span className="text-[11px] text-muted-foreground font-medium">Sample Specification</span>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleCategoryComplete(cat)}
-                            asChild
-                            className="rounded-xl text-xs font-semibold"
-                          >
-                            <a href={task.url || task.link || '#'} target="_blank" rel="noopener noreferrer">
-                              Inspect <ExternalLink className="w-3 h-3 ml-1" />
-                            </a>
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

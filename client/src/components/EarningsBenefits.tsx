@@ -19,7 +19,7 @@ export function EarningsBenefits() {
       description: "All tasks are completed within our browser-based secure workspace. No specialized local hardware needed."
     },
     {
-      icon: <Zap className="w-6 h-6 text-purple-500" />,
+      icon: <Zap className="w-6 h-6 text-accent" />,
       title: "Weekly Direct Payouts",
       description: "Receive your earnings automatically every week via PayPal, AirTM, or direct bank deposit with zero hidden fees."
     },

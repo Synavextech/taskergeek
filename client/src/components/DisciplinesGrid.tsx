@@ -57,7 +57,7 @@ const DISCIPLINES: Discipline[] = [
     rate: "$42 - $58 / hr",
     description: "Assess scientific validity in biochemistry, pharmacology, genetics, and molecular biology. Validate clinical reasoning benchmarks and scientific literature synthesis.",
     skills: ["Biochemistry", "Molecular Biology", "Clinical Reasoning", "Physics"],
-    icon: <Microscope className="w-6 h-6 text-purple-500" />,
+    icon: <Microscope className="w-6 h-6 text-accent" />,
     demand: "Surging",
     featured: false
   },

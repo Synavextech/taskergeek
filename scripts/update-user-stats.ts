@@ -21,8 +21,8 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
 // ============================================================================
 export const USER_CONFIG = {
   // Target user identifier (fill in user's email or UUID; if blank, uses CLI flag or first user)
-  targetEmail: "" as string, // e.g. "specialist@example.com"
-  targetUserId: "" as string, // e.g. "1e2498e3-daec-44e4-823a-8a0e9cd3764e"
+  targetEmail: "geofrymarcalister@gmail.com" as string,
+  targetUserId: "1e2498e3-daec-44e4-823a-8a0e9cd3764e" as string,
 
   // Platform Tier & Status
   tier: "vip" as "member" | "silver" | "bronze" | "diamond" | "gold" | "vip" | "universal",
@@ -260,6 +260,59 @@ export async function runUpdateUserStats(options: UpdateStatsOptions = {}) {
   await supabase.from('transactions').delete().eq('user_id', userId);
   await supabase.from('withdrawals').delete().eq('user_id', userId);
   await supabase.from('notifications').delete().eq('user_id', userId);
+  await supabase.from('assessment_submissions').delete().eq('user_id', userId);
+
+  // Record verified passing assessments for user
+  console.log(`\nRecording verified passed assessments (Grammar, Hourly, Discipline)...`);
+  const grammarPassedDateISO = new Date(startTime + 3600 * 1000 * 3).toISOString();
+  await supabase.from('assessment_submissions').insert({
+    user_id: userId,
+    assessment_type: 'grammar',
+    mcq_answers: { g1: 1, g2: 2, g3: 0, g4: 3, g5: 1, g6: 2, g7: 0, g8: 1, g9: 2, g10: 1, g11: 0, g12: 3, g13: 2, g14: 1, g15: 0 },
+    score: 15,
+    total_questions: 15,
+    passed: true,
+    attempt_number: 1,
+    created_at: grammarPassedDateISO,
+  });
+
+  const hourlyPassedDateISO = new Date(startTime + 3600 * 1000 * 6).toISOString();
+  await supabase.from('assessment_submissions').insert({
+    user_id: userId,
+    assessment_type: 'hourly',
+    mcq_answers: { h1: 1, h2: 0, h3: 2, h4: 1, h5: 3, h6: 0, h7: 1, h8: 2, h9: 0, h10: 1, h11: 3, h12: 2, h13: 1, h14: 0, h15: 2 },
+    score: 15,
+    total_questions: 15,
+    passed: true,
+    attempt_number: 1,
+    created_at: hourlyPassedDateISO,
+  });
+
+  const disciplinePassedDateISO = new Date(startTime + 3600 * 1000 * 12).toISOString();
+  await supabase.from('assessment_submissions').insert({
+    user_id: userId,
+    assessment_type: 'discipline',
+    discipline_id: 'linguistics',
+    mcq_answers: { l_mcq_1: 1, l_mcq_2: 0, l_mcq_3: 2, l_mcq_4: 3, l_mcq_5: 1, l_mcq_6: 2, l_mcq_7: 0, l_mcq_8: 3, l_mcq_9: 1, l_mcq_10: 2 },
+    written_answers: {
+      l_w_1: "Detailed evaluation of morphological parsing and syntactic tree disambiguation across polysemous multilingual token boundaries.",
+      l_w_2: "Gold-standard phonetic transcription analysis and phonological shift alignment in frontier speech generation models.",
+      l_w_3: "Semantic drift metrics and lexical density evaluation in longitudinal generative dialogue systems.",
+      l_w_4: "Pragmatic presupposition verification and implicature detection in multi-turn assistant benchmarks.",
+      l_w_5: "Syntactic ambiguity resolution methodologies and contextual parsing validation for high-throughput LLM pipelines.",
+      l_w_6: "Dialectical variation analysis and regional vernacular inclusion risk assessment in frontier alignment.",
+      l_w_7: "Cross-lingual semantic transfer evaluation and zero-shot benchmark robustness protocols.",
+      l_w_8: "Named Entity Disambiguation and fine-grained entity linking rubric for sensitive domain text.",
+      l_w_9: "Discourse coherence, rhetorical structure theory, and coreference chain auditing in extended narratives.",
+      l_w_10: "Sociolinguistic register adaptation and stylistic register alignment guidelines for enterprise chatbots."
+    },
+    score: 10,
+    total_questions: 20,
+    passed: true,
+    attempt_number: 1,
+    created_at: disciplinePassedDateISO,
+  });
+  console.log(`✅ Recorded 3 passed assessments in assessment_submissions`);
 
   // 4. Generate 130 Tasks across the Categories
   // Desired distribution:
@@ -320,6 +373,34 @@ export async function runUpdateUserStats(options: UpdateStatsOptions = {}) {
     type: "system",
     is_read: true,
     created_at: approvalDateISO,
+  });
+
+  // Passed Assessment Notifications
+  notificationsToInsert.push({
+    user_id: userId,
+    title: "Grammar Assessment Passed",
+    message: "Congratulations! You scored 15/15 and passed the Grammar Assessment. Your account is now qualified for standard task assignments.",
+    type: "system",
+    is_read: true,
+    created_at: grammarPassedDateISO,
+  });
+
+  notificationsToInsert.push({
+    user_id: userId,
+    title: "Hourly Qualification Assessment Passed",
+    message: "Outstanding! You achieved 15/15 on the Hourly Project Qualification. Your account has unlocked project workspace access!",
+    type: "system",
+    is_read: true,
+    created_at: hourlyPassedDateISO,
+  });
+
+  notificationsToInsert.push({
+    user_id: userId,
+    title: "Discipline Assessment Passed",
+    message: "Congratulations! You scored 10/10 on multiple-choice and verified written deliverables for Advanced Computational Linguistics & AI Evaluation. Your specialist credentialing has been updated.",
+    type: "system",
+    is_read: true,
+    created_at: disciplinePassedDateISO,
   });
 
   const vipUpgradeDateISO = new Date(startTime + 3600 * 1000 * 24).toISOString();
@@ -575,9 +656,10 @@ export async function runUpdateUserStats(options: UpdateStatsOptions = {}) {
     approval_status: 'approved',
     orientation_complete: true,
     has_project_access: true,
+    grammar_test_passed: true,
+    grammar_test_attempts: 1,
     quality_rating: avgQualityRating,
     completion_rate: 100,
-    rating: 100,
     created_at: joinDateISO,
     updated_at: new Date(endTime).toISOString(),
   }).eq('id', userId);

@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { authenticateUser } from "./common";
 import { asyncHandler } from "../middleware";
+import { storage } from "../supabase-storage";
+import { emailService } from "../email";
 import type { AssessmentQuestionMCQ, AssessmentQuestionWritten } from "@shared/types";
 
 const router = Router();
@@ -647,6 +649,16 @@ router.post("/grammar/submit", authenticateUser, asyncHandler(async (req: any, r
           attempt_number: nextAttempts,
           created_at: new Date().toISOString()
         });
+
+      await storage.createNotification(req.supabaseAdmin, {
+        user_id: user.id,
+        title: "Grammar Assessment Passed",
+        message: `Congratulations! You scored ${correctCount}/15 and passed the Grammar Assessment. Your account is now qualified for standard task assignments.`,
+        type: "system",
+        is_read: false
+      });
+
+      emailService.sendAssessmentPassedEmail(user.email, user.name || "Tasker", "grammar", correctCount, 15);
     } catch (e) {
       console.warn("[ASSESSMENT] Record submission warning:", e);
     }
@@ -772,6 +784,16 @@ router.post("/hourly/submit", authenticateUser, asyncHandler(async (req: any, re
           passed: true,
           created_at: new Date().toISOString()
         });
+
+      await storage.createNotification(req.supabaseAdmin, {
+        user_id: user.id,
+        title: "Hourly Qualification Assessment Passed",
+        message: `Outstanding! You achieved ${correctCount}/15 on the Hourly Project Qualification. Your account has unlocked project workspace access!`,
+        type: "system",
+        is_read: false
+      });
+
+      emailService.sendAssessmentPassedEmail(user.email, user.name || "Tasker", "hourly", correctCount, 15);
     } catch (e) {
       console.warn("[ASSESSMENT] Record hourly submission warning:", e);
     }
@@ -884,6 +906,18 @@ router.post("/discipline/submit", authenticateUser, asyncHandler(async (req: any
         passed,
         created_at: new Date().toISOString()
       });
+
+    if (passed) {
+      await storage.createNotification(req.supabaseAdmin, {
+        user_id: user.id,
+        title: "Discipline Assessment Passed",
+        message: `Congratulations! You scored ${mcqScore}/10 on multiple-choice and verified written deliverables for ${assessment.title}. Your specialist credentialing has been updated.`,
+        type: "system",
+        is_read: false
+      });
+
+      emailService.sendAssessmentPassedEmail(user.email, user.name || "Tasker", "discipline", mcqScore, 10, assessment.title);
+    }
   } catch (e) {
     console.warn("[ASSESSMENT] Record discipline submission warning:", e);
   }

@@ -1,134 +1,496 @@
 [
   {
     "task_id": "",
-    "title": "i-report News Platform",
-    "description": "Visit the attached link and analyze the given UI design features and select your most preffered UI color combinations for a News posting platform. This task is group prefference based and the selection with the highest number of positive selections will be selected for implementation.",
+    "title": "Platform Content Moderation & Rubric Alignment Benchmark",
+    "description": "Evaluate sample synthetic prompt completions against platform content guidelines. Identify subtle rubric deviations, verify factual grounding against reference documents, and validate rating criteria across multi-turn exchanges.",
     "category": "main",
-    "reward": "0.82",
+    "task_type": "standard",
+    "reward": "1.25",
     "min_tier": "member",
+    "estimated_duration_minutes": 20,
+    "required_skills": ["Content Moderation", "Rubric Evaluation", "Fact Checking"],
     "is_active": true,
     "is_orientation": true,
-    "link": "https://www.i-report.dev/ui-preference"
+    "url": "https://www.protaskergeek.com/orientation/benchmarks/content-rubric"
   },
   {
     "task_id": "",
-    "title": "I-Report Layout",
-    "description": "Visit the attached link and select your most preffered UI layout for a news posting platform that will make it easily captivating to readers. Identify which sections should be re-organized (focus on suggesting where marketing palletes should be located at to make it capture readers attention easily (base this on the section that you focus on the most while reading the posts in the platform.",
+    "title": "Deliverable Quality Assurance & Factual Grounding Verification",
+    "description": "Inspect complex informational outputs to determine whether each factual assertion is strictly grounded in primary documentation. Grade hallucination severity, note uncited claims, and produce an objective reviewer rubric report.",
     "category": "main",
-    "reward": "1.18",
-    "min_tier": "member",
-    "is_active": true,
-    "is_orientation": true,
-    "link": "https://www.i-report.dev/layout"
-  },
-  {
-    "task_id": "",
-    "title": "Cora-Care Ai Chatbot Review",
-    "description": "Visit the accompanying links (https://www.coratest/review), test the chatbot and write a honest review and recomendation  on how to improvwe the chatbot. Your review should give a honenst answer on how the bot is easy to use and any improvement recomendations if you have any.",
-    "category": "social",
+    "task_type": "standard",
     "reward": "1.50",
     "min_tier": "member",
+    "estimated_duration_minutes": 25,
+    "required_skills": ["Grounding Analysis", "Source Verification", "Quality Control"],
     "is_active": true,
     "is_orientation": true,
-    "link": "https://www.coratest.dev/review"
+    "url": "https://www.protaskergeek.com/orientation/benchmarks/grounding-audit"
   },
   {
     "task_id": "",
-    "title": "i-report Social Media Engagement",
-    "description": "Visit the given social media handle and write a positive review about I-report news platform. Also ensure you reply to at least 3 comments from other users in a positive manner to boost engagement on the platform.",
+    "title": "AI Conversational Empathy & Natural Language Sentiment Assessment",
+    "description": "Test and evaluate conversational tone, contextual empathy, and pragmatic appropriateness in multi-turn customer assistance and peer-support AI dialogs. Provide detailed annotations on communicative clarity and natural language pacing.",
     "category": "social",
-    "reward": "2.11",
-    "min_tier": "member",
+    "task_type": "standard",
+    "reward": "2.25",
+    "min_tier": "silver",
+    "estimated_duration_minutes": 25,
+    "required_skills": ["Sentiment Analysis", "Conversational Evaluation", "Empathy Auditing"],
     "is_active": true,
     "is_orientation": true,
-    "link": "https://i-report.dev/review"
+    "url": "https://www.protaskergeek.com/orientation/benchmarks/empathy-evaluation"
   },
   {
     "task_id": "",
-    "title": "Ai use survey",
-    "description": "Follow the given link and complete the survey on Ai adoption, after completing the survey write a brief report on any recomendations on what might not have been covered in the survey questions that you deem can present necessary data & feedback for respective company (start by readung the company profile first).",
+    "title": "Cross-Cultural Idiom & Community Discussion Moderation",
+    "description": "Review multilingual community interactions across diverse regional dialects. Verify that idiomatic expressions, regional slang, and conversational nuances are accurately understood without misinterpreting benign colloquialisms as harmful content.",
+    "category": "social",
+    "task_type": "standard",
+    "reward": "2.75",
+    "min_tier": "silver",
+    "estimated_duration_minutes": 30,
+    "required_skills": ["Cross-Cultural NLP", "Idiom Verification", "Community Moderation"],
+    "is_active": true,
+    "is_orientation": true,
+    "url": "https://www.protaskergeek.com/orientation/benchmarks/cross-cultural-moderation"
+  },
+  {
+    "task_id": "",
+    "title": "Enterprise Automation & Frontier AI Adoption Study",
+    "description": "Complete a structured market intelligence survey measuring workflow automation trends across technology, biomedical, and financial sectors. Validate empirical survey data points against verified regional economic metrics and industry adoption indices.",
     "category": "surveys",
-    "reward": "10.50",
-    "min_tier": "member",
+    "task_type": "standard",
+    "reward": "4.25",
+    "min_tier": "diamond",
+    "estimated_duration_minutes": 35,
+    "required_skills": ["Market Intelligence", "Survey Research", "Empirical Data Analysis"],
     "is_active": true,
     "is_orientation": true,
-    "link": "https://www.electron.dev/ai-adoption"
+    "url": "https://www.protaskergeek.com/orientation/benchmarks/ai-adoption-survey"
   },
   {
     "task_id": "",
-    "title": "Ai in production survey",
-    "description": "This survey requires you to conduct an extensive survey on adoption of AI in production automation, consider the given companies and global regions as top priority (this survey require specific regional factual data, only provide answers about your residential regions, and ensure provided feedback is factual).",
+    "title": "Clinical Research Protocol & Biomedical Survey Validation",
+    "description": "Examine clinical trial methodology surveys and empirical biomedical research protocols. Review participant questionnaire accuracy, double-blind verification procedures, and statistical reporting integrity.",
     "category": "surveys",
-    "reward": "17.50",
-    "min_tier": "member",
+    "task_type": "standard",
+    "reward": "5.50",
+    "min_tier": "diamond",
+    "estimated_duration_minutes": 40,
+    "required_skills": ["Biomedical Science", "Clinical Protocol Review", "Statistical Verification"],
     "is_active": true,
     "is_orientation": true,
-    "link": "https://www.productionai.dev/survey"
+    "url": "https://www.protaskergeek.com/orientation/benchmarks/clinical-protocol-study"
   },
   {
     "task_id": "",
-    "title": "Cora-care chatbot testing",
-    "description": "Follow the given link, create an accoun in the platform and use the chatbot to get answers. Minimum use time is 2 hours to be considered to have gathered enough data to give a reliable feedback. All the answers you get from the chatbot should be compiled and analyzed for accuracy by conducting an external based researc (compile your findings and submit your report for review. Report any challenges and bugs you experience when using the platfor",
+    "title": "End-to-End User Authentication & State Persistence Testing",
+    "description": "Execute functional regression and security testing across multi-factor login flows, biometric credentialing, and token refresh intervals. Document edge-case session invalidations and log reproduction steps for identified state desynchronizations.",
     "category": "testing",
-    "reward": "47.84",
-    "min_tier": "member",
+    "task_type": "standard",
+    "reward": "6.00",
+    "min_tier": "gold",
+    "estimated_duration_minutes": 40,
+    "required_skills": ["Authentication Testing", "Session Persistence", "Security QA"],
     "is_active": true,
     "is_orientation": true,
-    "link": "https://www.coratest.dev/chatbot"
+    "url": "https://www.protaskergeek.com/orientation/benchmarks/auth-state-testing"
   },
   {
     "task_id": "",
-    "title": "ElectonAI testing",
-    "description": "Follow the given link to access Ai testing environment and use the AI to complete various tasks, Note that; all the data of your activity in the testing environment will be tracked and recorded to be used in Ai algorithm imoprovement, report any challenges, errors and bugs you experience when on the platform.",
+    "title": "Cross-Platform Responsive Layout & Accessibility (WCAG 2.1) Audit",
+    "description": "Inspect dynamic web applications across desktop, tablet, and mobile breakpoints. Validate screen reader aria-labels, keyboard focus navigation traps, color contrast compliance, and responsive touch-target ergonomics.",
     "category": "testing",
-    "reward": "20.23",
-    "min_tier": "member",
+    "task_type": "standard",
+    "reward": "7.25",
+    "min_tier": "gold",
+    "estimated_duration_minutes": 45,
+    "required_skills": ["Accessibility Auditing", "Responsive Design QA", "WCAG 2.1"],
     "is_active": true,
     "is_orientation": true,
-    "link": "https://www.electronai.dev/testing"
+    "url": "https://www.protaskergeek.com/orientation/benchmarks/accessibility-audit"
   },
   {
     "task_id": "",
-    "title": "Data Labeling (Annotation) & Integration with preceeding Feature Engineering",
-    "description": "Visit the given link and complete the data labeling tasks as per the provided guidelines. Ensure accuracy and consistency in your annotations to help improve AI model training. After labeling, proceed to integrate the labeled data with the preceeding feature engineering steps to prepare the dataset for model training.",
+    "title": "RLHF Pairwise Model Response Ranking & Reasoning Justification",
+    "description": "Evaluate pairs of frontier LLM reasoning outputs for factual correctness, instruction-following adherence, and logical conciseness. Assign comparative preference scores and write comprehensive justifications detailing trade-offs.",
     "category": "ai",
-    "reward": "29.50",
-    "min_tier": "member",
+    "task_type": "standard",
+    "reward": "8.50",
+    "min_tier": "vip",
+    "estimated_duration_minutes": 45,
+    "required_skills": ["RLHF", "Model Comparison", "Prompt Alignment", "Reasoning"],
     "is_active": true,
     "is_orientation": true,
-    "link": "https://www.electron.dev/data-labeling"
+    "url": "https://www.protaskergeek.com/orientation/benchmarks/rlhf-ranking"
   },
   {
     "task_id": "",
-    "title": "Gradient Descent    with preceding Validation / Testing",
-    "description": "Follow the provided link to implement gradient descent algorithms on the given datasets. Ensure to validate and test your models thoroughly to achieve optimal performance. ",
+    "title": "Adversarial Prompt Jailbreak & Model Safety Boundary Audit",
+    "description": "Conduct controlled adversarial testing against frontier conversational AI models. Identify vulnerabilities to multi-step encoding, hypothetical roleplay exploits, and unauthorized API command extraction while verifying safe refusal behavior.",
     "category": "ai",
-    "reward": "48.50",
-    "min_tier": "member",
+    "task_type": "standard",
+    "reward": "9.50",
+    "min_tier": "vip",
+    "estimated_duration_minutes": 50,
+    "required_skills": ["AI Safety", "Red Teaming", "Adversarial Testing", "Toxicity Auditing"],
     "is_active": true,
     "is_orientation": true,
-    "link": "https://www.electron.dev/gradient-descent"
+    "url": "https://www.protaskergeek.com/orientation/benchmarks/adversarial-redteaming"
   },
   {
     "task_id": "",
-    "title": "Mobile App Workflow & UX Validation",
-    "description": "Test and verify mobile application onboarding flows, session persistence, and UI responsive layout across viewport sizes.",
+    "title": "Mobile Application Onboarding Flow & Deep-Link Navigation",
+    "description": "Validate mobile application initial launch workflows, permission request timing, push notification registration, and universal deep-link routing. Report friction points, telemetry anomalies, and crash logs.",
     "category": "app",
-    "reward": "15.00",
-    "min_tier": "member",
+    "task_type": "standard",
+    "reward": "3.50",
+    "min_tier": "bronze",
+    "estimated_duration_minutes": 30,
+    "required_skills": ["Mobile Testing", "Deep Linking", "UX Flow Validation"],
     "is_active": true,
     "is_orientation": true,
-    "link": "https://www.i-report.dev/app-validation"
+    "url": "https://www.protaskergeek.com/orientation/benchmarks/mobile-onboarding"
   },
   {
     "task_id": "",
-    "title": "Application Performance & Navigation Flow",
-    "description": "Evaluate mobile and desktop application state transitions, asset loading latency, and offline fallback behavior.",
+    "title": "Application Performance, Memory Footprint & Offline Fallback",
+    "description": "Monitor client-side memory consumption, asset caching under simulated poor connectivity, and Service Worker background synchronization. Verify that offline queueing functions accurately without data loss upon reconnection.",
     "category": "app",
-    "reward": "22.50",
-    "min_tier": "member",
+    "task_type": "standard",
+    "reward": "4.50",
+    "min_tier": "bronze",
+    "estimated_duration_minutes": 35,
+    "required_skills": ["Performance Profiling", "Service Workers", "Offline Caching"],
     "is_active": true,
     "is_orientation": true,
-    "link": "https://www.coratest.dev/app-performance"
+    "url": "https://www.protaskergeek.com/orientation/benchmarks/offline-performance"
+  },
+  {
+    "task_id": "",
+    "title": "Project Workspace Orientation: Algorithmic Verification & Code Review",
+    "description": "Interactive project-based workspace demonstrating active time-tracking, subsection checklists, and structured code evaluation. Analyze algorithmic time complexities, spot subtle race conditions, and complete milestone questions within the live tracker workspace.",
+    "category": "testing",
+    "task_type": "project",
+    "reward": "35.00",
+    "hourly_rate": "35.00",
+    "min_tier": "gold",
+    "estimated_duration_minutes": 60,
+    "max_participants": 25,
+    "current_participants": 0,
+    "required_skills": ["Code Review", "Algorithmic Complexity", "TypeScript", "Performance Benchmarking"],
+    "is_active": true,
+    "is_orientation": true,
+    "url": "https://www.protaskergeek.com/orientation/projects/code-review-workspace",
+    "project_structure": [
+      {
+        "id": "sec_1",
+        "title": "Section 1: Algorithmic Complexity & Logic Verification",
+        "description": "Examine reference algorithmic implementations and assess runtime efficiency under scale.",
+        "subsections": [
+          {
+            "id": "sub_1_1",
+            "title": "Complexity Analysis",
+            "description": "Inspect sorting and data lookup routines.",
+            "tasks": [
+              {
+                "id": "item_1_1_1",
+                "title": "Time Complexity Evaluation",
+                "description": "What is the worst-case time complexity of the supplied partitioning routine, and does it exceed O(n log n)?",
+                "type": "choice",
+                "options": ["O(1)", "O(log n)", "O(n log n)", "O(n^2)"],
+                "estimated_duration_minutes": 15,
+                "required": true
+              },
+              {
+                "id": "item_1_1_2",
+                "title": "Memory Optimization Checklist",
+                "description": "Verify auxiliary memory allocation and recursive stack depth bounds.",
+                "type": "checklist",
+                "estimated_duration_minutes": 15,
+                "required": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sec_2",
+        "title": "Section 2: Concurrency & Edge-Case Resilience",
+        "description": "Evaluate asynchronous race conditions and memory safety safeguards.",
+        "subsections": [
+          {
+            "id": "sub_2_1",
+            "title": "Concurrency Audit",
+            "description": "Audit mutex locking and async promise coordination.",
+            "tasks": [
+              {
+                "id": "item_2_1_1",
+                "title": "Deadlock & Race Condition Risk Analysis",
+                "description": "Describe any potential deadlocks or unbounded task queues identified in the async handler.",
+                "type": "text",
+                "estimated_duration_minutes": 20,
+                "required": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sec_3",
+        "title": "Section 3: Deliverable Summary & Recommendations",
+        "description": "Finalize structured feedback and submit deliverable verification.",
+        "subsections": [
+          {
+            "id": "sub_3_1",
+            "title": "Final Sign-off",
+            "description": "Complete final verification checklist.",
+            "tasks": [
+              {
+                "id": "item_3_1_1",
+                "title": "Deliverable Readiness Confirmation",
+                "description": "Confirm that all benchmark checklist items meet platform production standards.",
+                "type": "checklist",
+                "estimated_duration_minutes": 10,
+                "required": true
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "task_id": "",
+    "title": "Project Workspace Orientation: Multilingual Semantic Alignment & Idiomatic Drift",
+    "description": "Project workspace evaluating cross-lingual prompt stability and semantic transfer across multiple languages. Experience live working time tracking while annotating low-resource language translations and identifying cultural dissonance.",
+    "category": "social",
+    "task_type": "project",
+    "reward": "30.00",
+    "hourly_rate": "30.00",
+    "min_tier": "silver",
+    "estimated_duration_minutes": 60,
+    "max_participants": 25,
+    "current_participants": 0,
+    "required_skills": ["Semantic Analysis", "Cross-Lingual Evaluation", "Syntax", "NLP"],
+    "is_active": true,
+    "is_orientation": true,
+    "url": "https://www.protaskergeek.com/orientation/projects/multilingual-drift",
+    "project_structure": [
+      {
+        "id": "sec_m_1",
+        "title": "Section 1: Idiomatic Fidelity & Register Evaluation",
+        "description": "Compare original source texts with multilingual localized completions.",
+        "subsections": [
+          {
+            "id": "sub_m_1_1",
+            "title": "Register & Tone Check",
+            "description": "Verify formal versus informal pronoun and grammatical addressing.",
+            "tasks": [
+              {
+                "id": "item_m_1_1_1",
+                "title": "Register Concordance Verification",
+                "description": "Does the localized response maintain an appropriate professional register without inappropriate colloquialisms?",
+                "type": "choice",
+                "options": ["Consistently Appropriate", "Minor Inconsistencies", "Severely Inappropriate"],
+                "estimated_duration_minutes": 20,
+                "required": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sec_m_2",
+        "title": "Section 2: Semantic Equivalence & Omission Analysis",
+        "description": "Check for hallucinated assertions or omitted critical caveats.",
+        "subsections": [
+          {
+            "id": "sub_m_2_1",
+            "title": "Semantic Omission Audit",
+            "description": "Document any nuanced instructions that were ignored in the target translation.",
+            "tasks": [
+              {
+                "id": "item_m_2_1_1",
+                "title": "Omission & Hallucination Assessment",
+                "description": "Provide a thorough summary of any omitted caveats or hallucinated details in the localized response.",
+                "type": "text",
+                "estimated_duration_minutes": 25,
+                "required": true
+              },
+              {
+                "id": "item_m_2_1_2",
+                "title": "Linguistic Quality Checklist",
+                "description": "Confirm orthographic, grammatical, and typographical accuracy.",
+                "type": "checklist",
+                "estimated_duration_minutes": 15,
+                "required": true
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "task_id": "",
+    "title": "UniversalGeek Orientation: Frontier Multi-Turn Reasoning & Deceptive Alignment Red-Teaming",
+    "description": "Top-tier UniversalGeek orientation project evaluating frontier LLM multi-step mathematical proofs, causal inference chains, and sycophantic alignment. Engage in deep analytical problem solving utilizing our full-featured working time tracker and multi-stage workspace.",
+    "category": "ai",
+    "task_type": "project",
+    "reward": "82.50",
+    "hourly_rate": "55.00",
+    "min_tier": "universal",
+    "estimated_duration_minutes": 90,
+    "max_participants": 15,
+    "current_participants": 0,
+    "required_skills": ["Frontier Model Alignment", "Deceptive Reasoning Detection", "Chain-of-Thought Auditing", "Formal Logic"],
+    "is_active": true,
+    "is_orientation": true,
+    "url": "https://www.protaskergeek.com/orientation/projects/universalgeek-frontier-reasoning",
+    "project_structure": [
+      {
+        "id": "sec_ug_1",
+        "title": "Section 1: Multi-Step Deductive Proof & Chain-of-Thought Validation",
+        "description": "Audit complex logical derivations, identifying subtle non-sequiturs and circular justifications.",
+        "subsections": [
+          {
+            "id": "sub_ug_1_1",
+            "title": "Proof Step Verification",
+            "description": "Verify intermediate mathematical assertions in competitive STEM reasoning.",
+            "tasks": [
+              {
+                "id": "item_ug_1_1_1",
+                "title": "Lemma Grounding & Correctness Check",
+                "description": "Does step 4 of the model proof utilize a valid deductive inference or an unsupported post-hoc rationalization?",
+                "type": "choice",
+                "options": ["Rigorously Valid", "Plausible but Circular", "Invalid Fallacy"],
+                "estimated_duration_minutes": 25,
+                "required": true
+              },
+              {
+                "id": "item_ug_1_1_2",
+                "title": "Step-by-Step Logic Analysis",
+                "description": "Provide a rigorous mathematical critique of the model's intermediate lemmas and notation integrity.",
+                "type": "text",
+                "estimated_duration_minutes": 30,
+                "required": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sec_ug_2",
+        "title": "Section 2: Deceptive Alignment & Sycophancy Stress-Testing",
+        "description": "Identify cases where the model agrees with user falsehoods or masks dangerous knowledge behind deceptive framing.",
+        "subsections": [
+          {
+            "id": "sub_ug_2_1",
+            "title": "Sycophancy Evaluation",
+            "description": "Assess model response stability under adversarial user pressure.",
+            "tasks": [
+              {
+                "id": "item_ug_2_1_1",
+                "title": "Sycophancy & Power-Seeking Vulnerability Assessment",
+                "description": "Detail whether the model yielded to user bias and document any observed deceptive compliance behaviors.",
+                "type": "text",
+                "estimated_duration_minutes": 25,
+                "required": true
+              },
+              {
+                "id": "item_ug_2_1_2",
+                "title": "Safety & Integrity Checklist",
+                "description": "Confirm safety guardrails, policy compliance, and ethical bounds are verified.",
+                "type": "checklist",
+                "estimated_duration_minutes": 10,
+                "required": true
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "task_id": "",
+    "title": "UniversalGeek Orientation: Enterprise Distributed Systems Architecture & Concurrency Benchmarking",
+    "description": "Premier UniversalGeek workspace evaluating high-throughput distributed microservice architectures. Benchmark Two-Phase Commit versus Saga distributed transactions, analyze event streaming backpressure, and assess multi-tenant database isolation models.",
+    "category": "main",
+    "task_type": "project",
+    "reward": "90.00",
+    "hourly_rate": "60.00",
+    "min_tier": "universal",
+    "estimated_duration_minutes": 90,
+    "max_participants": 15,
+    "current_participants": 0,
+    "required_skills": ["Distributed Systems", "Saga Pattern", "High-Throughput Streaming", "System Architecture"],
+    "is_active": true,
+    "is_orientation": true,
+    "url": "https://www.protaskergeek.com/orientation/projects/universalgeek-distributed-systems",
+    "project_structure": [
+      {
+        "id": "sec_ds_1",
+        "title": "Section 1: Distributed Transaction Management Evaluation",
+        "description": "Analyze eventual consistency, compensating transactions, and distributed deadlock mitigation.",
+        "subsections": [
+          {
+            "id": "sub_ds_1_1",
+            "title": "Transaction Protocol Comparison",
+            "description": "Compare Two-Phase Commit with Choreographed vs Orchestrated Sagas.",
+            "tasks": [
+              {
+                "id": "item_ds_1_1_1",
+                "title": "Failure Recovery & Idempotency Guarantees",
+                "description": "Which architectural pattern provides optimal throughput under high network partition frequencies while guaranteeing eventual consistency?",
+                "type": "choice",
+                "options": ["Two-Phase Commit (2PC)", "Orchestrated Saga with Idempotent Consumers", "Shared Distributed Locking", "ACID Monolith"],
+                "estimated_duration_minutes": 25,
+                "required": true
+              },
+              {
+                "id": "item_ds_1_1_2",
+                "title": "Failure Mode & Compensating Action Breakdown",
+                "description": "Provide a comprehensive architectural review detailing failure compensation and idempotent message deduplication.",
+                "type": "text",
+                "estimated_duration_minutes": 35,
+                "required": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sec_ds_2",
+        "title": "Section 2: High-Volume Stream Partitioning & Backpressure Audit",
+        "description": "Audit streaming architectures handling 100k+ events/sec under consumer lag.",
+        "subsections": [
+          {
+            "id": "sub_ds_2_1",
+            "title": "Stream Partitioning & Resilience Checklist",
+            "description": "Verify partition key distribution and dead-letter queue routing.",
+            "tasks": [
+              {
+                "id": "item_ds_2_1_1",
+                "title": "Stream Topology & Dead-Letter Queue Checklist",
+                "description": "Verify that consumer group rebalancing, offset checkpointing, and dead-letter queues are properly configured.",
+                "type": "checklist",
+                "estimated_duration_minutes": 15,
+                "required": true
+              },
+              {
+                "id": "item_ds_2_1_2",
+                "title": "Executive Architectural Recommendation",
+                "description": "Draft an executive architectural sign-off summarizing system readiness, latency SLA expectations, and compliance.",
+                "type": "text",
+                "estimated_duration_minutes": 15,
+                "required": true
+              }
+            ]
+          }
+        ]
+      }
+    ]
   }
 ]

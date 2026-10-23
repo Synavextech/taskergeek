@@ -13,6 +13,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -77,9 +84,20 @@ export default function Wallet() {
   const [isCashoutOpen, setIsCashoutOpen] = useState(false);
   const [isAccountsOpen, setIsAccountsOpen] = useState(false);
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<number | null>(null);
+  const [selectedMethodType, setSelectedMethodType] = useState<string>("paypal");
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const getMethodLabel = (type?: string) => {
+    switch (type?.toLowerCase()) {
+      case 'payoneer': return 'Payoneer';
+      case 'airtm': return 'AirTM';
+      case 'bank_transfer': return 'Bank Wire';
+      case 'paypal':
+      default: return 'PayPal';
+    }
+  };
 
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
   const [paymentMethodError, setPaymentMethodError] = useState<string | null>(null);
@@ -167,8 +185,8 @@ export default function Wallet() {
     },
     onSuccess: () => {
       toast({
-        title: "Payment method added",
-        description: "Your PayPal payout account has been verified.",
+        title: "Payout account connected",
+        description: "Your payout destination has been verified.",
       });
       paymentMethodForm.reset();
       queryClient.invalidateQueries({
@@ -245,8 +263,8 @@ export default function Wallet() {
 
     if (!selectedPaymentMethodId) {
       toast({
-        title: "No payment method selected",
-        description: "Please select an active PayPal payout account.",
+        title: "No payout account selected",
+        description: "Please select an active payout destination account.",
         variant: "destructive",
       });
       return;
@@ -260,7 +278,10 @@ export default function Wallet() {
 
   const onAddPaymentMethod = (data: InsertPaymentMethod) => {
     setPaymentMethodError(null);
-    addPaymentMethodMutation.mutate(data);
+    addPaymentMethodMutation.mutate({
+      ...data,
+      type: (selectedMethodType as any) || data.type || "paypal",
+    });
   };
 
   const getStatusBadge = (status: string) => {
@@ -343,7 +364,12 @@ export default function Wallet() {
                           <RadioGroupItem value={method.id.toString()} id={`method-${method.id}`} />
                           <Label htmlFor={`method-${method.id}`} className="flex-1 cursor-pointer text-xs font-medium">
                             <div className="flex items-center justify-between">
-                              <span className="font-semibold text-foreground">{method.email}</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-foreground">{method.email}</span>
+                                <Badge variant="outline" className="text-[9px] py-0 px-1 uppercase text-muted-foreground">
+                                  {getMethodLabel(method.type)}
+                                </Badge>
+                              </div>
                               {method.isPrimary && (
                                 <Badge variant="secondary" className="text-[10px]">Primary</Badge>
                               )}
@@ -353,7 +379,7 @@ export default function Wallet() {
                       ))
                     ) : (
                       <p className="text-xs text-muted-foreground py-2">
-                        No PayPal account linked. Please add one under Payment Accounts first.
+                        No payout destination linked. Please add one under Payout Accounts first.
                       </p>
                     )}
                   </RadioGroup>
@@ -380,7 +406,7 @@ export default function Wallet() {
             </DialogTrigger>
             <DialogContent className="max-w-md rounded-3xl p-6 sm:p-8">
               <DialogHeader>
-                <DialogTitle className="text-xl font-bold">PayPal Payout Accounts</DialogTitle>
+                <DialogTitle className="text-xl font-bold">Payout Accounts</DialogTitle>
               </DialogHeader>
 
               <div className="space-y-4 my-2">
@@ -396,7 +422,12 @@ export default function Wallet() {
                             <CreditCard className="w-4 h-4 text-accent" />
                           </div>
                           <div>
-                            <p className="font-bold text-xs text-foreground">{method.email}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-bold text-xs text-foreground">{method.email}</p>
+                              <Badge variant="outline" className="text-[9px] py-0 px-1.5 uppercase font-medium">
+                                {getMethodLabel(method.type)}
+                              </Badge>
+                            </div>
                             {method.isPrimary && (
                               <Badge variant="secondary" className="text-[10px] mt-0.5">Primary</Badge>
                             )}
@@ -431,17 +462,48 @@ export default function Wallet() {
                     ))
                   ) : (
                     <p className="text-center text-xs text-muted-foreground py-4">
-                      No PayPal accounts connected yet.
+                      No payout accounts connected yet.
                     </p>
                   )}
                 </div>
 
                 <form onSubmit={paymentMethodForm.handleSubmit(onAddPaymentMethod)} className="space-y-3 pt-3 border-t border-border/40">
-                  <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Add New PayPal Account</h4>
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Add New Payout Account</h4>
+                  
                   <div>
+                    <Label className="text-xs mb-1 block">Payout Method</Label>
+                    <Select
+                      value={selectedMethodType}
+                      onValueChange={(val: string) => {
+                        setSelectedMethodType(val);
+                        paymentMethodForm.setValue("type", val as any);
+                      }}
+                    >
+                      <SelectTrigger className="rounded-xl bg-card border-border/60 text-xs">
+                        <SelectValue placeholder="Select payout method" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="paypal">PayPal</SelectItem>
+                        <SelectItem value="payoneer">Payoneer</SelectItem>
+                        <SelectItem value="airtm">AirTM</SelectItem>
+                        <SelectItem value="bank_transfer">Direct Bank Wire / Transfer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs mb-1 block">Account Email / Identifier</Label>
                     <Input
                       type="email"
-                      placeholder="paypal-email@example.com"
+                      placeholder={
+                        selectedMethodType === 'payoneer'
+                          ? "payoneer-email@example.com"
+                          : selectedMethodType === 'airtm'
+                          ? "airtm-email@example.com"
+                          : selectedMethodType === 'bank_transfer'
+                          ? "beneficiary-email@example.com"
+                          : "paypal-email@example.com"
+                      }
                       className="rounded-xl bg-card border-border/60 text-xs"
                       {...paymentMethodForm.register("email")}
                     />
@@ -463,7 +525,7 @@ export default function Wallet() {
                     disabled={addPaymentMethodMutation.isPending}
                     className="w-full rounded-xl text-xs font-bold bg-accent hover:bg-accent/90 text-accent-foreground"
                   >
-                    {addPaymentMethodMutation.isPending ? "Connecting..." : "Add Account"}
+                    {addPaymentMethodMutation.isPending ? "Connecting..." : "Add Payout Account"}
                   </Button>
                 </form>
               </div>

@@ -128,7 +128,7 @@ export default function Notifications() {
       case "payment":
         return <DollarSign className="w-5 h-5 text-emerald-500" />;
       case "skill-upgrade":
-        return <Zap className="w-5 h-5 text-purple-500" />;
+        return <Zap className="w-5 h-5 text-accent" />;
       default:
         return <Bell className="w-5 h-5 text-accent" />;
     }

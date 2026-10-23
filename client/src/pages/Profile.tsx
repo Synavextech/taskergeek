@@ -98,7 +98,7 @@ export default function Profile() {
   const totalCompletedCount = completedOrders.length;
 
   const categoryMetaMap: Record<string, { name: string; icon: string; color: string }> = {
-    ai: { name: "AI Training", icon: "🤖", color: "bg-purple-500" },
+    ai: { name: "AI Training", icon: "🤖", color: "bg-accent" },
     testing: { name: "App & Web Testing", icon: "⚙️", color: "bg-blue-500" },
     surveys: { name: "Surveys & Polls", icon: "📊", color: "bg-emerald-500" },
     social: { name: "Social Engagement", icon: "👥", color: "bg-amber-500" },
@@ -590,7 +590,7 @@ export default function Profile() {
                   </p>
                   <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
                     <div
-                      className="bg-purple-500 h-1.5 rounded-full transition-all duration-300"
+                      className="bg-accent h-1.5 rounded-full transition-all duration-300"
                       style={{ width: `${totalCompletedCount > 0 ? Math.round((projectOrdersCount / totalCompletedCount) * 100) : 0}%` }}
                     />
                   </div>

@@ -150,11 +150,10 @@ export default function Home() {
       )}
 
       {/* Orientation Banner for New/In-Progress Users */}
-      <Card className={`rounded-3xl border transition-all ${
-        needsOrientation
-          ? 'border-accent bg-accent/5'
-          : 'border-border/60 bg-card/60'
-      }`}>
+      <Card className={`rounded-3xl border transition-all ${needsOrientation
+        ? 'border-accent bg-accent/5'
+        : 'border-border/60 bg-card/60'
+        }`}>
         <CardHeader className="p-6 pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-bold flex items-center gap-2">
@@ -278,7 +277,7 @@ export default function Home() {
             {
               id: "main",
               title: "Core Verification",
-              icon: "📋",
+              icon: "",
               minTier: "member",
               payout: "$0.25 - $2.50",
               badgeClass: "bg-teal-500/15 text-teal-600 dark:text-teal-400 border-teal-500/30",
@@ -287,7 +286,7 @@ export default function Home() {
             {
               id: "social",
               title: "Social Engagement",
-              icon: "👥",
+              icon: "",
               minTier: "silver",
               payout: "$0.30 - $3.50",
               badgeClass: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30",
@@ -305,7 +304,7 @@ export default function Home() {
             {
               id: "surveys",
               title: "Surveys & Polls",
-              icon: "📊",
+              icon: "",
               minTier: "diamond",
               payout: "$5.00 - $18.00",
               badgeClass: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
@@ -314,7 +313,7 @@ export default function Home() {
             {
               id: "testing",
               title: "App & Web Testing",
-              icon: "⚙️",
+              icon: "",
               minTier: "gold",
               payout: "$15.00 - $50.00",
               badgeClass: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30",
@@ -323,10 +322,10 @@ export default function Home() {
             {
               id: "ai",
               title: "AI Training & Alignment",
-              icon: "🤖",
+              icon: "",
               minTier: "vip",
               payout: "$25.00 - $75.00",
-              badgeClass: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30",
+              badgeClass: "bg-accent/15 text-accent border-accent/30",
               description: "Frontier LLM reasoning validation, RLHF feedback, prompt-response ranking, and red-teaming."
             }
           ].map((cat) => (

@@ -9,7 +9,7 @@ export const transactionTypeEnum = ['earning', 'withdrawal', 'referral', 'skill-
 export const transactionStatusEnum = ['pending', 'completed', 'failed'] as const;
 export const roleEnum = ['user', 'admin'] as const;
 export const approvalStatusEnum = ['pending', 'approved', 'rejected'] as const;
-export const paymentMethodEnum = ['paypal', 'manual'] as const;
+export const paymentMethodEnum = ['paypal', 'payoneer', 'airtm', 'bank_transfer', 'manual'] as const;
 export const orderStatusEnum = ['pending', 'completed', 'failed', 'refunded'] as const;
 
 export const SUPPORTED_COUNTRIES = [
@@ -98,7 +98,7 @@ export const TASK_DISCIPLINES: TaskDisciplineMeta[] = [
     icon: '🤖',
     description: 'Train frontier AI models via reasoning validation, RLHF, and prompt-response ranking.',
     recommendedMinTier: 'vip',
-    badgeClass: 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30',
+    badgeClass: 'bg-accent/15 text-accent border-accent/30',
   },
   {
     category: 'testing',
