@@ -835,7 +835,27 @@ router.get("/skill-upgrades/pending", authenticateAdmin, async (req: any, res) =
             .order("created_at", { ascending: false });
 
         if (error) throw error;
-        res.json(data);
+
+        if (data && data.length > 0) {
+            const userIds = [...new Set(data.map((s: any) => s.user_id))];
+            const { data: assessments } = await req.supabaseAdmin
+                .from('assessment_submissions')
+                .select('*')
+                .in('user_id', userIds)
+                .order('created_at', { ascending: false });
+
+            const enriched = data.map((sub: any) => {
+                const userAssessments = assessments?.filter((a: any) => a.user_id === sub.user_id) || [];
+                return {
+                    ...sub,
+                    payment_reference: sub.payment_reference || sub.transaction_code,
+                    assessments: userAssessments
+                };
+            });
+            return res.json(enriched);
+        }
+
+        res.json(data || []);
     } catch (error) {
         console.error("Fetch pending upgrades error:", error);
         res.status(500).json({ message: "Failed to fetch pending upgrades" });
@@ -867,7 +887,7 @@ router.patch("/skill-upgrades/:id/approve", async (req: any, res) => {
             tier: sub.tier,
             amount: sub.amount,
             paymentMethod: sub.payment_method || 'manual',
-            paymentReference: sub.payment_reference || `MANUAL_${requestId}`,
+            paymentReference: sub.payment_reference || sub.transaction_code || `MANUAL_${requestId}`,
             isActive: true,
             expiresAt: expiryDate.toISOString()
         });
@@ -890,6 +910,62 @@ router.patch("/skill-upgrades/:id/approve", async (req: any, res) => {
             type: "system",
             is_read: false
         });
+
+        // Award Referral Commission if subscriber was referred by another user
+        try {
+            const subscriber = await storage.getUser(req.supabaseAdmin, sub.user_id);
+            if (subscriber && subscriber.referred_by) {
+                const { data: referrer, error: refError } = await req.supabaseAdmin
+                    .from('users')
+                    .select('*')
+                    .eq('referral_code', subscriber.referred_by)
+                    .single();
+
+                if (referrer && !refError) {
+                    const bonusAmount = (parseFloat(String(sub.amount || '0')) * 0.10).toFixed(2);
+                    if (parseFloat(bonusAmount) > 0) {
+                        const referrerWallet = await storage.getWallet(req.supabaseAdmin, referrer.id);
+                        if (referrerWallet) {
+                            const newBalance = (parseFloat(String(referrerWallet.available_balance || '0')) + parseFloat(bonusAmount)).toFixed(2);
+                            const newEarnings = (parseFloat(String(referrerWallet.total_earnings || '0')) + parseFloat(bonusAmount)).toFixed(2);
+
+                            await storage.updateWallet(req.supabaseAdmin, referrer.id, {
+                                available_balance: newBalance,
+                                total_earnings: newEarnings
+                            });
+
+                            await storage.createTransaction(req.supabaseAdmin, {
+                                user_id: referrer.id,
+                                type: 'referral',
+                                amount: bonusAmount,
+                                status: 'completed',
+                                description: `Referral bonus for user ${subscriber.name || subscriber.email}`,
+                                metadata: {
+                                    referred_user_id: subscriber.id,
+                                    subscription_id: sub.id,
+                                    payment_method: sub.payment_method || 'manual'
+                                }
+                            });
+
+                            await storage.createNotification(req.supabaseAdmin, {
+                                user_id: referrer.id,
+                                title: 'Referral Bonus Earned!',
+                                message: `You earned $${bonusAmount} because your referral ${subscriber.name || subscriber.email} upgraded their skill tier!`,
+                                type: 'referral',
+                                is_read: false,
+                                metadata: {
+                                    bonusAmount,
+                                    referredUserId: subscriber.id
+                                }
+                            });
+                            console.log(`[ADMIN] Referral bonus of $${bonusAmount} processed for referrer ${referrer.id}`);
+                        }
+                    }
+                }
+            }
+        } catch (refBonusErr) {
+            console.error("[ADMIN] Error awarding referral bonus on manual upgrade:", refBonusErr);
+        }
 
         console.log(`[ADMIN] Skill upgrade request ${requestId} approved successfully`);
         res.json({ success: true });

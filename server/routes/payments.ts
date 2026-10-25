@@ -90,11 +90,11 @@ router.post("/skill-upgrades/manual", authenticateUser, async (req: any, res) =>
             return res.status(400).json({ message: "Tier, Transaction Code, and Amount are required" });
         }
 
-        // Validate transaction code (alphanumeric, 10-20 chars)
-        const codeRegex = /^[a-zA-Z0-9]{10,20}$/;
+        // Validate transaction code (alphanumeric and dashes, 6-66 chars: PayPal, crypto tx hash, bank receipts)
+        const codeRegex = /^[a-zA-Z0-9-]{6,66}$/;
         if (!codeRegex.test(transactionCode)) {
             return res.status(400).json({
-                message: "Invalid Transaction Code format. Must be alphanumeric and 10-20 characters long."
+                message: "Invalid Transaction Code format. Must be alphanumeric (hyphens allowed) and 6-66 characters long."
             });
         }
 
@@ -108,35 +108,71 @@ router.post("/skill-upgrades/manual", authenticateUser, async (req: any, res) =>
             .maybeSingle();
 
         if (existing) {
-            return res.status(400).json({ message: "You already have a pending upgrade request. Please wait for admin approval." });
+            return res.status(400).json({ message: "You already have a pending upgrade request. Please complete your training and wait for admin approval." });
         }
 
-        const { data: sub, error } = await req.supabaseAdmin
+        // Insert with payment_reference as canonical field, falling back gracefully
+        let insertPayload: any = {
+            user_id: userId,
+            tier,
+            amount: parseFloat(amount) || amount,
+            status: 'pending',
+            payment_method: 'manual',
+            payment_reference: transactionCode,
+            created_at: new Date().toISOString()
+        };
+
+        let { data: sub, error } = await req.supabaseAdmin
             .from('manual_subscriptions')
-            .insert({
-                user_id: userId,
-                tier,
-                amount,
-                status: 'pending',
-                payment_method: 'manual',
-                transaction_code: transactionCode,
-                created_at: new Date().toISOString()
-            })
+            .insert(insertPayload)
             .select()
             .single();
 
         if (error) {
+            console.warn("[PAYMENTS] Insert with payment_reference failed, attempting transaction_code fallback:", error.message);
+            const fallbackPayload: any = {
+                user_id: userId,
+                tier,
+                amount: parseFloat(amount) || amount,
+                status: 'pending',
+                payment_method: 'manual',
+                transaction_code: transactionCode,
+                created_at: new Date().toISOString()
+            };
+            const fallbackResult = await req.supabaseAdmin
+                .from('manual_subscriptions')
+                .insert(fallbackPayload)
+                .select()
+                .single();
+            sub = fallbackResult.data;
+            error = fallbackResult.error;
+        }
+
+        if (error || !sub) {
             console.error("[PAYMENTS] Manual upgrade record creation failed:", error);
             return res.status(500).json({ message: "Failed to create upgrade request" });
         }
 
+        // Notify user about required training and examination
         try {
-            await notifyAdmins(req.supabaseAdmin, "Manual Upgrade Request", `User ${req.user.name} requested ${tier} upgrade.`, "payment", { userId });
+            await storage.createNotification(req.supabaseAdmin, {
+                user_id: userId,
+                title: "Tier Training & Verification Initiated",
+                message: `Your payment reference (${transactionCode}) for the ${tier.toUpperCase()} tier has been recorded. Review the training curriculum for your tier and complete your skills examination while awaiting administrative approval.`,
+                type: "system",
+                is_read: false
+            });
+        } catch (userNotifErr) {
+            console.error("[PAYMENTS] User notification failed:", userNotifErr);
+        }
+
+        try {
+            await notifyAdmins(req.supabaseAdmin, "Manual Upgrade Request", `User ${req.user.name} submitted payment (${transactionCode}) for ${tier} upgrade.`, "payment", { userId, subId: sub.id });
         } catch (notifErr) {
             console.error("[PAYMENTS] Admin notification failed:", notifErr);
         }
 
-        res.json({ success: true, message: "Request submitted for review", requestId: sub.id });
+        res.json({ success: true, message: "Payment submitted. Please review your training curriculum and examination.", requestId: sub.id });
     } catch (error) {
         console.error("[PAYMENTS] Manual upgrade unexpected error:", error);
         res.status(500).json({ message: "An unexpected error occurred while submitting your request" });
@@ -193,7 +229,16 @@ router.post("/paypal/order/:orderID/capture", authenticateUser, async (req: any,
                 }))
                 .then(async ({ error }) => {
                     if (error) console.error("[PAYMENTS] Failed to record PayPal upgrade:", error);
-                    else await notifyAdmins(req.supabaseAdmin, "PayPal Upgrade Request", `User ${req.user.name} paid for ${tier} upgrade via PayPal.`, "payment", { userId: req.user.id });
+                    else {
+                        await storage.createNotification(req.supabaseAdmin, {
+                            user_id: req.user.id,
+                            title: "Tier Training & Verification Initiated",
+                            message: `Your PayPal payment for the ${tier.toUpperCase()} tier has been recorded. Review the training curriculum for your tier and complete your skills examination while awaiting administrative approval.`,
+                            type: "system",
+                            is_read: false
+                        });
+                        await notifyAdmins(req.supabaseAdmin, "PayPal Upgrade Request", `User ${req.user.name} paid for ${tier} upgrade via PayPal.`, "payment", { userId: req.user.id });
+                    }
                 })
                 .catch(console.error);
         }

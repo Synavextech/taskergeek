@@ -5,6 +5,7 @@ import taskRouter from "./routes/tasks";
 import adminRouter from "./routes/admin";
 import paymentRouter from "./routes/payments";
 import assessmentRouter from "./routes/assessment";
+import supportRouter from "./routes/support";
 import { handlePayPalWebhook } from "./webhooks";
 import { asyncHandler } from "./middleware";
 import { storage } from "./supabase-storage";
@@ -48,6 +49,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/admin", adminRouter);
   app.use("/api/payments", paymentRouter);
   app.use("/api/assessment", assessmentRouter);
+  app.use("/api/support", supportRouter);
+  app.use("/api/referrals", authRouter);
 
   // PayPal Webhooks
   app.post("/api/webhooks/paypal", asyncHandler(handlePayPalWebhook));

@@ -36,7 +36,7 @@ import { insertTaskSchema, type InsertTask } from "@shared/types";
 import {
   Users, DollarSign, ClipboardList, UserCheck,
   MoreVertical, Edit, Shield, Ban, UserX, CheckCircle, Bell, ExternalLink, Gift, UserPlus, Lock as LucideLock, FileUp,
-  FileText, Star, Plus, Trash2, Clock, Layers
+  FileText, Star, Plus, Trash2, Clock, Layers, Copy, MessageSquare, Send, MessageCircle
 } from "lucide-react";
 import { FileUpload } from "@/components/ui/file-upload";
 import {
@@ -126,6 +126,53 @@ export default function Admin() {
   const { data: pendingVerifications = [] } = useQuery<User[]>({
     queryKey: ['/api/admin/verifications/pending'],
   });
+
+  // Support Livechat Admin State & Queries
+  const [selectedChatUserId, setSelectedChatUserId] = useState<string | null>(null);
+  const [adminReplyText, setAdminReplyText] = useState("");
+
+  const { data: supportConversations = [] } = useQuery<any[]>({
+    queryKey: ['/api/support/admin/conversations'],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/support/admin/conversations");
+      return res.json();
+    },
+    refetchInterval: 5000,
+  });
+
+  const { data: selectedChatMessages = [], isLoading: isChatMessagesLoading } = useQuery<any[]>({
+    queryKey: ['/api/support/admin/messages', selectedChatUserId],
+    queryFn: async () => {
+      if (!selectedChatUserId) return [];
+      const res = await apiRequest("GET", `/api/support/admin/messages/${selectedChatUserId}`);
+      return res.json();
+    },
+    enabled: !!selectedChatUserId,
+    refetchInterval: selectedChatUserId ? 3000 : false,
+  });
+
+  const sendAdminReplyMutation = useMutation({
+    mutationFn: async ({ userId, message }: { userId: string; message: string }) => {
+      const res = await apiRequest("POST", `/api/support/admin/messages/${userId}`, { message });
+      return res.json();
+    },
+    onSuccess: () => {
+      setAdminReplyText("");
+      queryClient.invalidateQueries({ queryKey: ['/api/support/admin/messages', selectedChatUserId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/support/admin/conversations'] });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Reply Failed",
+        description: err.message || "Failed to send message",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const totalUnreadSupport = (supportConversations || []).reduce((acc: number, c: any) => acc + (c.unreadCount || 0), 0);
+  const activeConversationUser = supportConversations.find((c: any) => c.userId === selectedChatUserId);
+
 
   const { data: settings } = useQuery<any>({
     queryKey: ['/api/admin/settings'],
@@ -665,13 +712,21 @@ export default function Admin() {
           <p className="text-muted-foreground">Manage users, tasks, and platform operations</p>
         </div>
         <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6 gap-1">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
             <TabsTrigger value="pending">Pending</TabsTrigger>
             <TabsTrigger value="withdrawals">Withdrawals</TabsTrigger>
-
+            <TabsTrigger value="support" className="relative flex items-center justify-center gap-1.5">
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Support Chat</span>
+              {totalUnreadSupport > 0 && (
+                <span className="bg-red-500 text-white rounded-full text-[10px] font-black px-1.5 py-0.2 leading-tight">
+                  {totalUnreadSupport}
+                </span>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -1520,23 +1575,53 @@ export default function Admin() {
                             {vUser.name}
                           </h3>
                           <p className="text-sm text-muted-foreground">{vUser.email} • {vUser.phone || 'No phone'}</p>
-                          <div className="mt-4 space-y-2">
-                            <Label className="text-xs font-bold uppercase text-muted-foreground">Uploaded Documents:</Label>
-                            <div className="flex flex-wrap gap-2">
-                              {Array.isArray(vUser.verification_documents) ? vUser.verification_documents.map((doc: string, idx: number) => (
-                                <Button
-                                  key={idx}
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 gap-1.5"
-                                  onClick={() => handleViewDocument(doc)}
-                                >
-                                  <FileText className="h-4 w-4" />
-                                  View Doc {idx + 1}
-                                </Button>
-                              )) : (
-                                <p className="text-sm text-muted-foreground italic">No document links found</p>
-                              )}
+                          <div className="mt-4 space-y-3">
+                            <div>
+                              <Label className="text-xs font-bold uppercase text-muted-foreground block mb-1.5">
+                                Identity Documents:
+                              </Label>
+                              <div className="flex flex-wrap gap-2">
+                                {Array.isArray(vUser.verification_documents) && vUser.verification_documents.length > 0 ? (
+                                  vUser.verification_documents.map((doc: string, idx: number) => (
+                                    <Button
+                                      key={idx}
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 gap-1.5 text-xs font-medium"
+                                      onClick={() => handleViewDocument(doc)}
+                                    >
+                                      <FileText className="h-4 w-4 text-accent" />
+                                      Identity Doc {idx + 1}
+                                    </Button>
+                                  ))
+                                ) : (
+                                  <p className="text-xs text-muted-foreground italic">No identity documents uploaded</p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div>
+                              <Label className="text-xs font-bold uppercase text-muted-foreground block mb-1.5">
+                                Tax Documents (W-9 / W-8BEN / Tax ID):
+                              </Label>
+                              <div className="flex flex-wrap gap-2">
+                                {Array.isArray(vUser.tax_documents) && vUser.tax_documents.length > 0 ? (
+                                  vUser.tax_documents.map((doc: string, idx: number) => (
+                                    <Button
+                                      key={idx}
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 gap-1.5 text-xs font-medium border-emerald-500/40 text-emerald-600 bg-emerald-50/50 dark:bg-emerald-950/20"
+                                      onClick={() => handleViewDocument(doc)}
+                                    >
+                                      <FileText className="h-4 w-4 text-emerald-500" />
+                                      Tax Doc {idx + 1}
+                                    </Button>
+                                  ))
+                                ) : (
+                                  <p className="text-xs text-muted-foreground italic">No tax documents uploaded</p>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -1598,68 +1683,125 @@ export default function Admin() {
                       <TableHead>User</TableHead>
                       <TableHead>Tier</TableHead>
                       <TableHead>Amount</TableHead>
+                      <TableHead>Payment Method & Reference</TableHead>
+                      <TableHead>Training & Exam Status</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {pendingSkillUpgrades?.map((sub: any) => (
-                      <TableRow key={sub.id}>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-medium">{sub.user?.name}</span>
-                            <span className="text-xs text-muted-foreground">{sub.user?.email}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="capitalize">
-                            {tierEmoji[sub.tier as keyof typeof tierEmoji]} {sub.tier}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>${sub.amount}</TableCell>
-                        <TableCell>{new Date(sub.created_at).toLocaleDateString()}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => approveSkillUpgradeMutation.mutate(sub.id)}
-                              disabled={approveSkillUpgradeMutation.isPending}
-                            >
-                              Approve
-                            </Button>
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button size="sm" variant="destructive">Reject</Button>
-                              </DialogTrigger>
-                              <DialogContent>
-                                <DialogHeader>
-                                  <DialogTitle>Reject Skill-Upgrade</DialogTitle>
-                                </DialogHeader>
-                                <div className="space-y-4">
-                                  <Textarea
-                                    placeholder="Enter rejection reason..."
-                                    id={`sub-reject-${sub.id}`}
-                                  />
-                                  <Button
-                                    variant="destructive"
+                    {pendingSkillUpgrades?.map((sub: any) => {
+                      const refCode = sub.payment_reference || sub.transaction_code || "N/A";
+                      const grammarPassed = sub.user?.grammar_test_passed === true;
+                      const hasProject = sub.user?.has_project_access === true;
+                      const assessments = sub.assessments || [];
+                      const passedAssessments = assessments.filter((a: any) => a.passed === true);
+
+                      return (
+                        <TableRow key={sub.id}>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{sub.user?.name || "Unnamed"}</span>
+                              <span className="text-xs text-muted-foreground">{sub.user?.email}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize font-bold">
+                              {tierEmoji[sub.tier as keyof typeof tierEmoji] || "👑"} {sub.tier}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="font-semibold text-emerald-600 dark:text-emerald-400">
+                            ${sub.amount}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              <Badge variant="secondary" className="w-fit text-[10px] uppercase font-bold tracking-wider">
+                                {sub.payment_method || "manual"}
+                              </Badge>
+                              <div className="flex items-center gap-1.5 font-mono text-xs bg-muted/50 px-2 py-1 rounded-md border border-border/50 max-w-[200px]">
+                                <span className="truncate" title={refCode}>{refCode}</span>
+                                {refCode !== "N/A" && (
+                                  <button
                                     onClick={() => {
-                                      const reason = (document.getElementById(`sub-reject-${sub.id}`) as HTMLTextAreaElement)?.value;
-                                      if (reason) rejectSkillUpgradeMutation.mutate({ id: sub.id, reason });
+                                      navigator.clipboard.writeText(refCode);
+                                      toast({ title: "Copied", description: "Reference code copied to clipboard." });
                                     }}
-                                    className="w-full"
-                                    disabled={rejectSkillUpgradeMutation.isPending}
-                                  > Confirm Rejection
-                                  </Button>
-                                </div>
-                              </DialogContent>
-                            </Dialog>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                                    className="p-1 hover:text-foreground text-muted-foreground transition-colors shrink-0"
+                                    title="Copy reference code"
+                                  >
+                                    <Copy className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1 text-xs">
+                              <div className="flex items-center gap-1">
+                                <span className={`w-2 h-2 rounded-full ${grammarPassed ? "bg-emerald-500" : "bg-amber-500"}`} />
+                                <span className="text-[11px] font-medium">
+                                  {grammarPassed ? "Grammar: Passed" : "Grammar: Pending"}
+                                </span>
+                              </div>
+                              {hasProject && (
+                                <Badge variant="outline" className="text-[10px] bg-accent/10 border-accent/30 text-accent font-semibold w-fit">
+                                  Project Qualified
+                                </Badge>
+                              )}
+                              {passedAssessments.length > 0 && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  {passedAssessments.length} Specialist Exam(s) Passed
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {new Date(sub.created_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => approveSkillUpgradeMutation.mutate(sub.id)}
+                                disabled={approveSkillUpgradeMutation.isPending}
+                                className="font-semibold bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8"
+                              >
+                                Approve
+                              </Button>
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button size="sm" variant="destructive" className="text-xs h-8">Reject</Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                  <DialogHeader>
+                                    <DialogTitle>Reject Skill-Upgrade</DialogTitle>
+                                  </DialogHeader>
+                                  <div className="space-y-4">
+                                    <Textarea
+                                      placeholder="Enter rejection reason..."
+                                      id={`sub-reject-${sub.id}`}
+                                    />
+                                    <Button
+                                      variant="destructive"
+                                      onClick={() => {
+                                        const reason = (document.getElementById(`sub-reject-${sub.id}`) as HTMLTextAreaElement)?.value;
+                                        if (reason) rejectSkillUpgradeMutation.mutate({ id: sub.id, reason });
+                                      }}
+                                      className="w-full"
+                                      disabled={rejectSkillUpgradeMutation.isPending}
+                                    > Confirm Rejection
+                                    </Button>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                     {(!pendingSkillUpgrades || pendingSkillUpgrades.length === 0) && (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                           No pending upgrades
                         </TableCell>
                       </TableRow>
@@ -2123,6 +2265,175 @@ export default function Admin() {
                 </Table>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="support" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[650px]">
+              {/* Conversations List */}
+              <Card className="col-span-1 flex flex-col h-full border-border/80">
+                <CardHeader className="py-3 px-4 border-b shrink-0 flex flex-row items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4 text-accent" />
+                    <CardTitle className="text-sm font-bold">Conversations</CardTitle>
+                  </div>
+                  <Badge variant="outline" className="text-xs">
+                    {supportConversations.length} Active
+                  </Badge>
+                </CardHeader>
+                <CardContent className="p-2 flex-1 overflow-y-auto space-y-1">
+                  {supportConversations.length === 0 ? (
+                    <div className="text-center py-12 px-4 text-xs text-muted-foreground">
+                      No customer support inquiries yet.
+                    </div>
+                  ) : (
+                    supportConversations.map((conv: any) => {
+                      const isSelected = selectedChatUserId === conv.userId;
+                      return (
+                        <div
+                          key={conv.userId}
+                          onClick={() => setSelectedChatUserId(conv.userId)}
+                          className={`p-3 rounded-2xl cursor-pointer transition-all border ${
+                            isSelected
+                              ? 'bg-accent/15 border-accent shadow-sm'
+                              : 'bg-card hover:bg-muted/60 border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <span className="font-bold text-xs text-foreground truncate">
+                              {conv.userName}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground shrink-0">
+                              {new Date(conv.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground line-clamp-1 mb-1.5">
+                            {conv.lastMessage}
+                          </p>
+                          <div className="flex items-center justify-between text-[10px]">
+                            <Badge variant="outline" className="text-[9px] py-0 px-1.5 capitalize">
+                              {conv.tier}
+                            </Badge>
+                            {conv.unreadCount > 0 && (
+                              <span className="bg-red-500 text-white font-bold text-[9px] px-1.5 py-0.5 rounded-full">
+                                {conv.unreadCount} new
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Message Thread */}
+              <Card className="col-span-1 md:col-span-2 flex flex-col h-full border-border/80">
+                {selectedChatUserId ? (
+                  <>
+                    <CardHeader className="py-3 px-4 border-b shrink-0 flex flex-row items-center justify-between">
+                      <div>
+                        <div className="font-bold text-sm text-foreground flex items-center gap-2">
+                          <span>{activeConversationUser?.userName || "Specialist"}</span>
+                          <Badge variant="outline" className="text-[10px] capitalize">
+                            {activeConversationUser?.tier || "member"}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {activeConversationUser?.userEmail}
+                        </div>
+                      </div>
+                      <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30 text-xs">
+                        Direct Livechat
+                      </Badge>
+                    </CardHeader>
+
+                    {/* Messages feed */}
+                    <CardContent className="flex-1 p-4 overflow-y-auto space-y-3 bg-muted/10 text-xs">
+                      {isChatMessagesLoading ? (
+                        <div className="h-full flex items-center justify-center">
+                          <Clock className="w-5 h-5 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : selectedChatMessages.length === 0 ? (
+                        <div className="text-center py-12 text-muted-foreground">
+                          No messages in this thread yet.
+                        </div>
+                      ) : (
+                        selectedChatMessages.map((msg: any) => {
+                          const isUser = msg.sender_role === 'user';
+                          return (
+                            <div
+                              key={msg.id}
+                              className={`flex flex-col ${isUser ? 'items-start' : 'items-end'}`}
+                            >
+                              <div className="flex items-center gap-1.5 mb-1 px-1">
+                                <span className="text-[10px] font-semibold text-muted-foreground">
+                                  {isUser ? (activeConversationUser?.userName || 'Specialist') : 'Support (You)'}
+                                </span>
+                                <span className="text-[9px] text-muted-foreground/70">
+                                  {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                              <div
+                                className={`max-w-[75%] rounded-2xl px-3.5 py-2.5 text-xs shadow-sm leading-relaxed ${
+                                  isUser
+                                    ? 'bg-card border border-border/80 text-foreground rounded-bl-xs'
+                                    : 'bg-accent text-accent-foreground rounded-br-xs'
+                                }`}
+                              >
+                                {msg.message}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </CardContent>
+
+                    {/* Reply Bar */}
+                    <div className="p-3 border-t bg-card shrink-0 flex items-center gap-2">
+                      <Input
+                        value={adminReplyText}
+                        onChange={(e) => setAdminReplyText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            if (adminReplyText.trim() && !sendAdminReplyMutation.isPending) {
+                              sendAdminReplyMutation.mutate({ userId: selectedChatUserId, message: adminReplyText.trim() });
+                            }
+                          }
+                        }}
+                        placeholder="Type reply to user..."
+                        className="rounded-xl text-xs h-9 bg-muted/50"
+                        disabled={sendAdminReplyMutation.isPending}
+                      />
+                      <Button
+                        onClick={() => {
+                          if (adminReplyText.trim() && !sendAdminReplyMutation.isPending) {
+                            sendAdminReplyMutation.mutate({ userId: selectedChatUserId, message: adminReplyText.trim() });
+                          }
+                        }}
+                        disabled={!adminReplyText.trim() || sendAdminReplyMutation.isPending}
+                        className="rounded-xl h-9 px-4 text-xs font-bold bg-accent hover:bg-accent/90 text-accent-foreground"
+                      >
+                        <Send className="w-3.5 h-3.5 mr-1.5" />
+                        Reply
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center p-8 text-center text-muted-foreground space-y-3">
+                    <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center">
+                      <MessageSquare className="w-6 h-6 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-sm text-foreground">No Conversation Selected</h4>
+                      <p className="text-xs max-w-sm mt-1">
+                        Select an inquiry from the list on the left to read messages and send responses.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="finance">

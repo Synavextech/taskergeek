@@ -211,6 +211,7 @@ export interface User {
   verification_status?: string;
   pending_verification: boolean;
   verification_documents?: string[];
+  tax_documents?: string[];
   orientation_complete: boolean;
   grammar_test_attempts?: number;
   grammar_test_passed?: boolean;
@@ -560,4 +561,27 @@ export interface AssessmentSubmission {
   passed: boolean;
   attempt_number?: number;
   created_at?: string;
+}
+
+// Support & Livechat Types
+export interface SupportMessage {
+  id: string;
+  user_id: string;
+  sender_role: 'user' | 'admin';
+  message: string;
+  is_read: boolean;
+  created_at: string;
+  user?: {
+    name: string;
+    email: string;
+  };
+}
+
+export interface SupportConversation {
+  userId: string;
+  userName: string;
+  userEmail: string;
+  lastMessage: string;
+  lastMessageAt: string;
+  unreadCount: number;
 }

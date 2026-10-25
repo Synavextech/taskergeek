@@ -21,6 +21,7 @@ router.get("/", authenticateUser, async (req: any, res) => {
 
         // Handle orientation tasks
         if (type === 'orientation' || req.query.is_orientation === 'true') {
+            let tasks: any[] = [];
             const { data: dbOrientationTasks } = await req.supabaseAdmin
                 .from('tasks')
                 .select('*')
@@ -28,25 +29,36 @@ router.get("/", authenticateUser, async (req: any, res) => {
                 .eq('is_active', true);
 
             if (dbOrientationTasks && dbOrientationTasks.length > 0) {
-                let tasks = dbOrientationTasks;
+                tasks = dbOrientationTasks;
+            } else {
+                // Fallback to local tasks.json if database has not been seeded yet
+                try {
+                    const fs = await import('fs');
+                    const path = await import('path');
+                    const tasksPath = path.resolve(process.cwd(), 'server', 'data', 'tasks.json');
+                    if (fs.existsSync(tasksPath)) {
+                        const fileData = JSON.parse(fs.readFileSync(tasksPath, 'utf8'));
+                        tasks = fileData.filter((t: any) => t.is_orientation === true);
+                    }
+                } catch (readErr) {
+                    console.warn("[TASKS] Failed to load local tasks fallback:", readErr);
+                }
+            }
 
+            if (tasks.length > 0) {
                 if (category && category !== 'all') {
                     tasks = tasks.filter((t: any) => t.category === category);
-                    if (tasks.length > 2) {
-                        tasks = tasks.sort(() => 0.5 - Math.random()).slice(0, 2);
-                    }
                 } else {
+                    // Group cleanly by category to ensure both standard and project tasks are preserved
                     const categories = taskCategoryEnum;
                     let selectedTasks: any[] = [];
 
                     categories.forEach(cat => {
                         const catTasks = tasks.filter((t: any) => t.category === cat);
-                        if (catTasks.length > 0) {
-                            const randomTasks = catTasks.sort(() => 0.5 - Math.random()).slice(0, 2);
-                            selectedTasks = [...selectedTasks, ...randomTasks];
-                        }
+                        // Take up to 3 tasks per category so standard and project tasks are preserved
+                        selectedTasks = [...selectedTasks, ...catTasks.slice(0, 3)];
                     });
-                    tasks = selectedTasks;
+                    tasks = selectedTasks.length > 0 ? selectedTasks : tasks;
                 }
                 return res.json(tasks);
             }

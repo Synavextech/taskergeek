@@ -492,5 +492,149 @@
         ]
       }
     ]
+  },
+  {
+    "task_id": "",
+    "title": "Project Workspace Orientation: High-Volume Empirical Survey Synthesis & Demographic Validation",
+    "description": "Project-based workspace benchmarking empirical market survey datasets. Monitor active working time while analyzing statistical sampling distributions, cross-tabulating demographic survey cohorts, and completing data integrity checklists.",
+    "category": "surveys",
+    "task_type": "project",
+    "reward": "45.00",
+    "hourly_rate": "45.00",
+    "min_tier": "diamond",
+    "estimated_duration_minutes": 60,
+    "max_participants": 20,
+    "current_participants": 0,
+    "required_skills": ["Survey Analytics", "Demographic Synthesis", "Empirical Validation", "Statistics"],
+    "is_active": true,
+    "is_orientation": true,
+    "url": "https://www.protaskergeek.com/orientation/projects/survey-synthesis",
+    "project_structure": [
+      {
+        "id": "sec_srv_1",
+        "title": "Section 1: Demographic Sample Distribution & Bias Audit",
+        "description": "Verify sampling representativeness across geographic and socio-demographic strata.",
+        "subsections": [
+          {
+            "id": "sub_srv_1_1",
+            "title": "Sampling Representation",
+            "description": "Evaluate non-response bias and sampling weights.",
+            "tasks": [
+              {
+                "id": "item_srv_1_1_1",
+                "title": "Margin of Error & Stratification Verification",
+                "description": "Does the demographic sample meet a 95% confidence interval with less than 3% margin of error across all specified sub-populations?",
+                "type": "choice",
+                "options": ["Fully Compliant", "Acceptable with Weighting", "Unacceptable Sampling Bias"],
+                "estimated_duration_minutes": 20,
+                "required": true
+              },
+              {
+                "id": "item_srv_1_1_2",
+                "title": "Empirical Verification Checklist",
+                "description": "Confirm statistical power calculations and data sanitation steps.",
+                "type": "checklist",
+                "estimated_duration_minutes": 15,
+                "required": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sec_srv_2",
+        "title": "Section 2: Research Insights Synthesis & Final Rubric",
+        "description": "Synthesize market intelligence findings into a structured summary report.",
+        "subsections": [
+          {
+            "id": "sub_srv_2_1",
+            "title": "Executive Summary Deliverable",
+            "description": "Provide a comprehensive synthesis of survey conclusions.",
+            "tasks": [
+              {
+                "id": "item_srv_2_1_1",
+                "title": "Market Adoption & Behavioral Trend Analysis",
+                "description": "Draft an executive summary detailing verified behavioral findings, outlier responses, and statistical confidence levels.",
+                "type": "text",
+                "estimated_duration_minutes": 25,
+                "required": true
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "task_id": "",
+    "title": "Project Workspace Orientation: Mobile Application Usability & Real-Time Telemetry Profiling",
+    "description": "Project-based workspace inspecting responsive mobile application behavior, crash log telemetry, and state transitions. Track active working time while documenting performance regressions and verifying UI/UX consistency across viewports.",
+    "category": "app",
+    "task_type": "project",
+    "reward": "32.00",
+    "hourly_rate": "32.00",
+    "min_tier": "bronze",
+    "estimated_duration_minutes": 60,
+    "max_participants": 20,
+    "current_participants": 0,
+    "required_skills": ["Mobile UX", "Telemetry Profiling", "State Transition Testing", "Crash Analysis"],
+    "is_active": true,
+    "is_orientation": true,
+    "url": "https://www.protaskergeek.com/orientation/projects/mobile-telemetry",
+    "project_structure": [
+      {
+        "id": "sec_app_1",
+        "title": "Section 1: Lifecycle State Transitions & Memory Audit",
+        "description": "Assess application backgrounding, deep-linking, and memory reclamation.",
+        "subsections": [
+          {
+            "id": "sub_app_1_1",
+            "title": "State Persistence Check",
+            "description": "Audit token persistence across app background cycles.",
+            "tasks": [
+              {
+                "id": "item_app_1_1_1",
+                "title": "Session Retention & State Recovery",
+                "description": "Did the client application restore active input states accurately following simulated OS memory pressure?",
+                "type": "choice",
+                "options": ["Complete Restoration", "Partial Data Loss", "App Crash / Reset"],
+                "estimated_duration_minutes": 20,
+                "required": true
+              },
+              {
+                "id": "item_app_1_1_2",
+                "title": "Device Ergonomics & Viewport Checklist",
+                "description": "Verify responsive touch targets, gesture responsiveness, and high-DPI asset clarity.",
+                "type": "checklist",
+                "estimated_duration_minutes": 15,
+                "required": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sec_app_2",
+        "title": "Section 2: Telemetry Bug Documentation",
+        "description": "Document telemetry anomalies and recommend optimization fixes.",
+        "subsections": [
+          {
+            "id": "sub_app_2_1",
+            "title": "Bug Report & Diagnostics",
+            "description": "Detail reproduction steps and recommended remediation.",
+            "tasks": [
+              {
+                "id": "item_app_2_1_1",
+                "title": "Diagnostic Report & Optimization Recommendations",
+                "description": "Provide a detailed technical breakdown of any latency spikes, network retries, or render frame drops observed.",
+                "type": "text",
+                "estimated_duration_minutes": 25,
+                "required": true
+              }
+            ]
+          }
+        ]
+      }
+    ]
   }
 ]

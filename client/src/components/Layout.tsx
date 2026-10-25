@@ -79,8 +79,8 @@ export default function Layout({ children }: LayoutProps) {
     premium: '👑',
   };
 
-  const openWhatsApp = () => {
-    window.open('https://wa.me/254712345678', '_blank');
+  const openSupport = (mode: 'task' | 'general' = 'general') => {
+    window.dispatchEvent(new CustomEvent('open-support', { detail: { mode } }));
   };
 
   const navItems = [
@@ -218,7 +218,7 @@ export default function Layout({ children }: LayoutProps) {
                   <Zap className="mr-2.5 h-4 w-4 text-accent" /> Skill-set Upgrade
                 </DropdownMenuItem>
 
-                <DropdownMenuItem onClick={openWhatsApp} className="rounded-xl cursor-pointer">
+                <DropdownMenuItem onClick={() => openSupport("general")} className="rounded-xl cursor-pointer">
                   <HelpCircle className="mr-2.5 h-4 w-4 text-emerald-500" /> Help & Support
                 </DropdownMenuItem>
 
@@ -263,8 +263,8 @@ export default function Layout({ children }: LayoutProps) {
                   <DropdownMenuItem onClick={() => setLocation("/skill-upgrade")}>
                     <Zap className="mr-2 h-4 w-4 text-accent" /> Skill Upgrade
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={openWhatsApp}>
-                    <HelpCircle className="mr-2 h-4 w-4 text-emerald-500" /> WhatsApp Support
+                  <DropdownMenuItem onClick={() => openSupport("general")}>
+                    <HelpCircle className="mr-2 h-4 w-4 text-emerald-500" /> Support Desk
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setLocation("/faq")}>
                     <FileText className="mr-2 h-4 w-4" /> FAQ

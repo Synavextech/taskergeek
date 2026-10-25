@@ -437,33 +437,35 @@ export default function SkillUpgrade() {
   const selectedPlanData = skillUpgradePlans.find((p) => p.id === selectedPlan);
   const amount = selectedPlanData ? selectedPlanData.price : 0;
 
-  if (user?.has_pending_upgrade) {
-    return (
-      <div className="min-h-[70vh] flex items-center justify-center p-4 animate-fade-in">
-        <Card className="max-w-md w-full text-center rounded-3xl border-border/60 bg-card p-6 sm:p-8 shadow-sm space-y-5">
-          <div className="w-16 h-16 rounded-2xl bg-amber-500/15 text-amber-500 mx-auto flex items-center justify-center text-3xl">
-            <Clock className="w-8 h-8" />
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-2xl font-black text-foreground">Upgrade Request Pending</h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Your tier upgrade verification is currently being verified by platform administration. You will be notified once active.
-            </p>
-          </div>
-          <Button
-            onClick={() => setLocation("/home")}
-            variant="outline"
-            className="w-full rounded-2xl font-semibold"
-          >
-            Return to Dashboard
-          </Button>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6 sm:space-y-8 animate-fade-in pb-20 max-w-6xl mx-auto">
+      {/* Pending Upgrade Alert Banner */}
+      {user?.has_pending_upgrade && (
+        <div className="p-4 sm:p-5 rounded-3xl bg-amber-500/15 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-foreground">Tier Upgrade Pending Administrative Approval</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Your payment reference has been recorded. Please review the training curriculum and complete your skills examination below while awaiting approval.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => {
+              setActiveTab("assessment");
+              window.scrollTo({ top: 300, behavior: "smooth" });
+            }}
+            className="rounded-xl text-xs font-bold shrink-0 self-start sm:self-auto"
+          >
+            Go to Examination
+          </Button>
+        </div>
+      )}
+
       {/* Hero Header */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-card via-card to-accent/10 border border-border/60 p-6 sm:p-8 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -1143,11 +1145,11 @@ export default function SkillUpgrade() {
                             return;
                           }
 
-                          const codeRegex = /^[a-zA-Z0-9-]{6,30}$/;
+                          const codeRegex = /^[a-zA-Z0-9-]{6,66}$/;
                           if (!codeRegex.test(transactionCode)) {
                             toast({
                               title: "Invalid Code",
-                              description: "Transaction code must be alphanumeric (6-30 characters).",
+                              description: "Transaction code must be alphanumeric (6-66 characters, hyphens allowed).",
                               variant: "destructive",
                             });
                             return;
@@ -1161,10 +1163,12 @@ export default function SkillUpgrade() {
                             .then(async (res) => {
                               if (res.ok) {
                                 toast({
-                                  title: "Verification Submitted",
-                                  description: "Your tier upgrade payment has been recorded and will be verified by administration.",
+                                  title: "Payment Recorded & Training Initiated 🌟",
+                                  description: `Your payment reference for ${selectedPlan.toUpperCase()} tier has been recorded. Review the training curriculum and complete your examination below while awaiting approval.`,
                                 });
-                                setLocation("/waiting-approval");
+                                queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+                                setActiveTab("assessment");
+                                window.scrollTo({ top: 300, behavior: "smooth" });
                               } else {
                                 const data = await res.json();
                                 toast({

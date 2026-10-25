@@ -513,28 +513,32 @@ router.post('/register', asyncHandler(async (req: any, res: Response) => {
     }
 }));
 
-router.get('/referrals/stats', authenticateUser, async (req: any, res) => {
+router.get(['/referrals/stats', '/stats'], authenticateUser, async (req: any, res) => {
     try {
         const userId = req.user.id;
+        const referralCode = req.user.referral_code;
 
-        const { data: referrals, error: countError } = await req.supabaseAdmin
-            .from('users')
-            .select('id', { count: 'exact' })
-            .eq('referred_by', req.user.referral_code);
+        let referralCount = 0;
+        if (referralCode) {
+            const { data: referrals, error: countError } = await req.supabaseAdmin
+                .from('users')
+                .select('id')
+                .eq('referred_by', referralCode);
+            referralCount = referrals?.length || 0;
+        }
 
         const { data: earnings, error: earnError } = await req.supabaseAdmin
             .from('transactions')
             .select('amount')
             .eq('user_id', userId)
-            .eq('type', 'referral_bonus');
+            .in('type', ['referral', 'referral_bonus']);
 
-        const referralCount = referrals?.length || 0;
-        const totalEarnings = (earnings || []).reduce((sum: number, tx: any) => sum + parseFloat(tx.amount), 0).toFixed(2);
+        const totalEarnings = (earnings || []).reduce((sum: number, tx: any) => sum + parseFloat(tx.amount || 0), 0).toFixed(2);
 
         res.json({
             count: referralCount,
             earnings: totalEarnings,
-            referralCode: req.user.referral_code
+            referralCode: referralCode || ""
         });
     } catch (error) {
         console.error("[AUTH] Referral stats error:", error);
@@ -598,7 +602,7 @@ router.patch('/profile', authenticateUser, async (req: any, res) => {
         const isEditAllowed = settings?.allow_profile_editing ?? true;
 
         const updates = { ...req.body };
-        const isVerificationOnly = Object.keys(updates).length === 1 && updates.verification_documents;
+        const isVerificationOnly = (updates.verification_documents || updates.tax_documents);
 
         if (!isEditAllowed && req.user.role !== 'admin' && !isVerificationOnly) {
             return res.status(403).json({
@@ -606,9 +610,12 @@ router.patch('/profile', authenticateUser, async (req: any, res) => {
             });
         }
 
-        // Auto-set status to 'submitted' if they just uploaded verification documents
-        if (updates.verification_documents && Array.isArray(updates.verification_documents) && updates.verification_documents.length > 0) {
-            console.log(`[AUTH] User ${req.user.id} uploaded verification documents. Setting status to submitted.`);
+        // Auto-set status to 'submitted' if they uploaded verification or tax documents
+        const hasVerificationDocs = updates.verification_documents && Array.isArray(updates.verification_documents) && updates.verification_documents.length > 0;
+        const hasTaxDocs = updates.tax_documents && Array.isArray(updates.tax_documents) && updates.tax_documents.length > 0;
+
+        if (hasVerificationDocs || hasTaxDocs) {
+            console.log(`[AUTH] User ${req.user.id} uploaded verification/tax documents. Setting status to submitted.`);
             updates.verification_status = 'submitted';
             updates.pending_verification = true;
         }

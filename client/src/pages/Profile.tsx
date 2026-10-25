@@ -27,6 +27,7 @@ import {
   Users,
   UploadCloud,
   FileCheck,
+  FileText,
   LogOut,
   ArrowRight,
   Sparkles,
@@ -50,6 +51,8 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [verificationFiles, setVerificationFiles] = useState<FileList | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [taxFiles, setTaxFiles] = useState<FileList | null>(null);
+  const [isUploadingTax, setIsUploadingTax] = useState(false);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -75,9 +78,9 @@ export default function Profile() {
   });
 
   const { data: referralStats } = useQuery<any>({
-    queryKey: ['/api/referrals/stats'],
+    queryKey: ['/api/auth/referrals/stats'],
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/referrals/stats");
+      const res = await apiRequest("GET", "/api/auth/referrals/stats");
       return res.json();
     }
   });
@@ -120,8 +123,9 @@ export default function Profile() {
   const standardOrdersCount = completedOrders.filter((ut: any) => (ut.task?.task_type || 'standard') === 'standard').length;
   const projectOrdersCount = completedOrders.filter((ut: any) => ut.task?.task_type === 'project').length;
 
-  const referralLink = referralStats?.referralCode
-    ? `${window.location.origin}/auth?ref=${referralStats.referralCode}`
+  const activeReferralCode = user?.referral_code || referralStats?.referralCode;
+  const referralLink = activeReferralCode
+    ? `${window.location.origin}/auth?ref=${activeReferralCode}`
     : "";
 
   const isEditAllowed = settings?.allow_profile_editing;
@@ -147,7 +151,7 @@ export default function Profile() {
   });
 
   const updateProfileMutation = useMutation({
-    mutationFn: async (data: Partial<ProfileFormValues> & { verification_documents?: string[] }) => {
+    mutationFn: async (data: Partial<ProfileFormValues> & { verification_documents?: string[]; tax_documents?: string[] }) => {
       const res = await apiRequest("PATCH", `/api/auth/profile`, data);
       return res.json();
     },
@@ -221,6 +225,62 @@ export default function Profile() {
       });
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleTaxSubmit = async () => {
+    if (!taxFiles || taxFiles.length === 0) return;
+
+    setIsUploadingTax(true);
+    try {
+      const uploadedUrls: string[] = [];
+
+      for (let i = 0; i < taxFiles.length; i++) {
+        const file = taxFiles[i];
+
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve, reject) => {
+          reader.onload = () => {
+            const base64 = (reader.result as string).split(',')[1];
+            resolve(base64);
+          };
+          reader.onerror = reject;
+        });
+        reader.readAsDataURL(file);
+        const base64 = await base64Promise;
+
+        const res = await apiRequest("POST", "/api/tasks/storage/upload", {
+          file: base64,
+          name: `${user?.id || 'unknown'}-${Date.now()}-tax-${file.name}`,
+          bucket: 'verification-docs',
+          contentType: file.type
+        });
+
+        const uploadResult = await res.json();
+        if (uploadResult.success) {
+          uploadedUrls.push(uploadResult.url);
+        } else {
+          throw new Error(uploadResult.message || "Upload failed");
+        }
+      }
+
+      await updateProfileMutation.mutateAsync({
+        tax_documents: uploadedUrls
+      } as any);
+
+      toast({
+        title: "Tax Documents Submitted",
+        description: "Your tax compliance documentation has been submitted for review.",
+      });
+      setTaxFiles(null);
+    } catch (error: any) {
+      toast({
+        title: "Tax Upload Failed",
+        description: error.message || "Failed to upload tax documents. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploadingTax(false);
     }
   };
 
@@ -402,27 +462,38 @@ export default function Profile() {
             </div>
           </Card>
 
-          {/* Identity Verification & Compliance Card */}
-          <Card className="rounded-3xl border-border/60 bg-card p-6 shadow-sm space-y-4">
+          {/* Identity & Tax Verification Card */}
+          <Card className="rounded-3xl border-border/60 bg-card p-6 shadow-sm space-y-5">
             <div className="flex items-center justify-between pb-3 border-b border-border/40">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-success" />
-                <h3 className="font-bold text-base text-foreground">Identity Verification & Credentials</h3>
+                <h3 className="font-bold text-base text-foreground">Identity & Tax Compliance</h3>
               </div>
               <Badge variant="outline" className="text-xs">
-                KYC Benchmark
+                KYC & Tax Verification
               </Badge>
             </div>
 
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Upload state-issued ID, academic degrees, or professional certifications to maintain unhindered access to high-tier AI training tasks and higher daily payout limits.
+              Submit your verification credentials and tax compliance documents to maintain unhindered access to high-tier AI training tasks and higher daily payout limits.
             </p>
 
-            <div className="p-4 rounded-2xl border border-dashed border-border/80 bg-muted/30 space-y-3">
-              <div className="flex items-center gap-3">
-                <UploadCloud className="w-5 h-5 text-muted-foreground" />
-                <span className="text-xs font-semibold text-foreground">Submit Verification Documentation</span>
+            {/* Section 1: Identity & Credentials */}
+            <div className="p-4 rounded-2xl border border-dashed border-border/80 bg-muted/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <UploadCloud className="w-4 h-4 text-accent" />
+                  <span className="text-xs font-bold text-foreground">1. Identity & Academic Credentials</span>
+                </div>
+                {user?.verification_documents && user.verification_documents.length > 0 && (
+                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px]">
+                    {user.verification_documents.length} File(s) On Record
+                  </Badge>
+                )}
               </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                State-issued ID, Passport, or Academic Diplomas.
+              </p>
               <Input
                 type="file"
                 multiple
@@ -439,12 +510,55 @@ export default function Profile() {
                 {isUploading ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
-                    Uploading Documents...
+                    Uploading Credentials...
                   </>
                 ) : (
                   <>
                     <FileCheck className="w-3.5 h-3.5 mr-1.5" />
-                    Submit for Compliance Review
+                    Submit Identity Documents
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* Section 2: Tax Documentation */}
+            <div className="p-4 rounded-2xl border border-dashed border-border/80 bg-muted/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <FileText className="w-4 h-4 text-emerald-500" />
+                  <span className="text-xs font-bold text-foreground">2. Tax Compliance Documentation</span>
+                </div>
+                {user?.tax_documents && user.tax_documents.length > 0 && (
+                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px]">
+                    {user.tax_documents.length} Tax File(s) On Record
+                  </Badge>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Upload completed W-9 (US Specialists), W-8BEN (International Specialists), or your local Tax Identification Certificate for annual compliance reporting.
+              </p>
+              <Input
+                type="file"
+                multiple
+                accept="image/*,.pdf"
+                onChange={(e) => setTaxFiles(e.target.files)}
+                className="rounded-xl text-xs file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-500/15 file:text-emerald-600 cursor-pointer"
+              />
+              <Button
+                onClick={handleTaxSubmit}
+                disabled={isUploadingTax || !taxFiles}
+                size="sm"
+                className="rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {isUploadingTax ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                    Uploading Tax Documents...
+                  </>
+                ) : (
+                  <>
+                    <FileCheck className="w-3.5 h-3.5 mr-1.5" />
+                    Submit Tax Documentation
                   </>
                 )}
               </Button>
@@ -606,8 +720,8 @@ export default function Profile() {
                 <Sparkles className="w-4 h-4 text-accent" />
                 Referral Invitation
               </span>
-              <Badge variant="outline" className="text-xs">
-                Earn 5%
+              <Badge variant="outline" className="text-xs font-bold text-accent border-accent/30 bg-accent/10">
+                Earn 10% Bonus
               </Badge>
             </div>
 
