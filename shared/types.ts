@@ -197,6 +197,9 @@ export interface User {
   id: string; // UUID from Supabase auth.users
   name: string;
   phone: string | null;
+  phone_verified?: boolean;
+  phone_verification_code?: string | null;
+  phone_verification_expiry?: string | null;
   email: string;
   gender: Gender;
   role: Role;

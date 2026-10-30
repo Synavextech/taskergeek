@@ -34,7 +34,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { insertTaskSchema, type InsertTask } from "@shared/types";
 import {
-  Users, DollarSign, ClipboardList, UserCheck,
+  Users, DollarSign, ClipboardList, UserCheck, Phone,
   MoreVertical, Edit, Shield, Ban, UserX, CheckCircle, Bell, ExternalLink, Gift, UserPlus, Lock as LucideLock, FileUp,
   FileText, Star, Plus, Trash2, Clock, Layers, Copy, MessageSquare, Send, MessageCircle
 } from "lucide-react";
@@ -561,6 +561,32 @@ export default function Admin() {
     },
   });
 
+  const togglePhoneVerifyMutation = useMutation({
+    mutationFn: async ({ userId, verified }: { userId: string; verified: boolean }) => {
+      const response = await apiRequest("PATCH", `/api/admin/users/${userId}/verify-phone`, { verified });
+      return response.json();
+    },
+    onSuccess: (data: { success: boolean; user: User }, variables) => {
+      const updatedUser = data.user;
+      toast({
+        title: variables.verified ? "Phone Verified" : "Phone Verification Revoked",
+        description: variables.verified ? "User phone marked as verified." : "User phone verification reset."
+      });
+      queryClient.setQueryData(['/api/admin/users'], (oldUsers: User[] | undefined) => {
+        if (!oldUsers) return [];
+        return oldUsers.map(u => u.id === updatedUser.id ? updatedUser : u);
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update phone verification status",
+        variant: "destructive"
+      });
+    }
+  });
+
   const deactivateUserMutation = useMutation({
     mutationFn: async (userId: string) => {
       const response = await apiRequest("PATCH", `/api/admin/users/${userId}/deactivate`);
@@ -931,7 +957,22 @@ export default function Admin() {
                           </div>
                         </TableCell>
                         <TableCell>{user.email}</TableCell>
-                        <TableCell>{user.phone}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1">
+                            <span className="font-mono text-xs">{user.phone || '—'}</span>
+                            {user.phone && (
+                              user.phone_verified ? (
+                                <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px] w-fit py-0">
+                                  Verified
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-amber-400 border-amber-500/30 text-[10px] w-fit py-0">
+                                  Unverified
+                                </Badge>
+                              )
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           {user.skill_upgrade_tier ? (
                             <Badge>
@@ -999,6 +1040,14 @@ export default function Admin() {
                                 <DropdownMenuItem onClick={() => verifyIdentityMutation.mutate(user.id)}>
                                   <Shield className="mr-2 h-4 w-4" /> Verify Identity
                                 </DropdownMenuItem>
+                                {user.phone && (
+                                  <DropdownMenuItem
+                                    onClick={() => togglePhoneVerifyMutation.mutate({ userId: user.id, verified: !user.phone_verified })}
+                                  >
+                                    <Phone className="mr-2 h-4 w-4 text-emerald-500" />
+                                    {user.phone_verified ? "Revoke Phone Verification" : "Mark Phone Verified"}
+                                  </DropdownMenuItem>
+                                )}
                                 <DropdownMenuSeparator />
                                 {user.is_suspended ? (
                                   <DropdownMenuItem onClick={() => suspendUserMutation.mutate({ userId: user.id, isSuspended: false })}>
@@ -2525,14 +2574,21 @@ function AdminSettings() {
 }
 
 function EditTaskForm({ task, onUpdate }: { task: Task; onUpdate: (data: Partial<InsertTask>) => void }) {
+  const [selectedTaskType, setSelectedTaskType] = useState<string>(task.task_type || 'standard');
+
   const form = useForm<InsertTask>({
     resolver: zodResolver(insertTaskSchema),
     defaultValues: {
       title: task.title,
       description: task.description,
       category: task.category,
+      taskType: (task.task_type || 'standard') as any,
       url: task.url || "",
       reward: String(task.reward), // Ensure string for form input
+      hourlyRate: task.hourly_rate ? String(task.hourly_rate) : "15.00",
+      maxParticipants: task.max_participants || 1,
+      estimatedDurationMinutes: task.estimated_duration_minutes || 30,
+      instructions: task.instructions || "",
       minTier: task.min_tier,
       isActive: task.is_active,
       isOrientation: task.is_orientation,
@@ -2540,23 +2596,51 @@ function EditTaskForm({ task, onUpdate }: { task: Task; onUpdate: (data: Partial
   });
 
   return (
-    <form onSubmit={form.handleSubmit((data) => onUpdate(data))} className="space-y-4">
+    <form onSubmit={form.handleSubmit((data) => {
+      const processedData = {
+        ...data,
+        taskType: selectedTaskType as any,
+        url: data.url?.trim() ? data.url.trim() : undefined,
+      };
+      onUpdate(processedData);
+    })} className="space-y-4 max-h-[75vh] overflow-y-auto px-1">
       <div>
         <Label htmlFor="edit-title">Task Title</Label>
-        <Input id="edit-title" {...form.register("title")} />
+        <Input id="edit-title" {...form.register("title")} className="rounded-xl" />
       </div>
+
       <div>
         <Label htmlFor="edit-description">Description</Label>
-        <Textarea id="edit-description" {...form.register("description")} />
+        <Textarea id="edit-description" {...form.register("description")} className="rounded-xl min-h-[80px]" />
       </div>
+
       <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="edit-taskType">Task Type</Label>
+          <Select
+            defaultValue={task.task_type || 'standard'}
+            onValueChange={(value) => {
+              setSelectedTaskType(value);
+              form.setValue('taskType', value as any);
+            }}
+          >
+            <SelectTrigger className="rounded-xl">
+              <SelectValue placeholder="Select type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="standard">Standard (Fixed Reward)</SelectItem>
+              <SelectItem value="project">Project (Hourly Rate)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         <div>
           <Label htmlFor="edit-category">Category</Label>
           <Select
             defaultValue={task.category}
             onValueChange={(value) => form.setValue('category', value as TaskCategory)}
           >
-            <SelectTrigger>
+            <SelectTrigger className="rounded-xl">
               <SelectValue placeholder="Select category" />
             </SelectTrigger>
             <SelectContent>
@@ -2569,13 +2653,41 @@ function EditTaskForm({ task, onUpdate }: { task: Task; onUpdate: (data: Partial
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="edit-reward">Fixed Reward ($ USD)</Label>
+          <Input
+            id="edit-reward"
+            type="number"
+            step="0.01"
+            {...form.register("reward")}
+            className="rounded-xl"
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="edit-hourlyRate">Hourly Rate ($/hr)</Label>
+          <Input
+            id="edit-hourlyRate"
+            type="number"
+            step="0.50"
+            {...form.register("hourlyRate")}
+            className="rounded-xl"
+            disabled={selectedTaskType !== 'project'}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
         <div>
           <Label htmlFor="edit-minTier">Minimum Tier</Label>
           <Select
             defaultValue={task.min_tier}
             onValueChange={(value) => form.setValue('minTier', value as SkillUpgradeTier)}
           >
-            <SelectTrigger>
+            <SelectTrigger className="rounded-xl">
               <SelectValue placeholder="Select tier" />
             </SelectTrigger>
             <SelectContent>
@@ -2589,20 +2701,38 @@ function EditTaskForm({ task, onUpdate }: { task: Task; onUpdate: (data: Partial
             </SelectContent>
           </Select>
         </div>
+
+        <div>
+          <Label htmlFor="edit-maxParticipants">Max Participants</Label>
+          <Input
+            id="edit-maxParticipants"
+            type="number"
+            {...form.register("maxParticipants")}
+            className="rounded-xl"
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="edit-duration">Est. Duration (min)</Label>
+          <Input
+            id="edit-duration"
+            type="number"
+            {...form.register("estimatedDurationMinutes")}
+            className="rounded-xl"
+          />
+        </div>
       </div>
-      <div>
-        <Label htmlFor="edit-reward">Reward ($ Usd)</Label>
-        <Input
-          id="edit-reward"
-          type="number"
-          step="0.01"
-          {...form.register("reward")}
-        />
-      </div>
+
       <div>
         <Label htmlFor="edit-url">Task URL (optional)</Label>
-        <Input id="edit-url" type="url" {...form.register("url")} />
+        <Input id="edit-url" type="url" {...form.register("url")} className="rounded-xl" />
       </div>
+
+      <div>
+        <Label htmlFor="edit-instructions">Detailed Instructions (optional)</Label>
+        <Textarea id="edit-instructions" {...form.register("instructions")} className="rounded-xl min-h-[60px]" />
+      </div>
+
       <div>
         <Label>Instruction Attachments</Label>
         <FileUpload
@@ -2614,25 +2744,30 @@ function EditTaskForm({ task, onUpdate }: { task: Task; onUpdate: (data: Partial
           useProxy={true}
         />
       </div>
-      <div className="flex items-center space-x-2">
-        <input
-          type="checkbox"
-          id="edit-isActive"
-          className="h-4 w-4 rounded border-gray-300"
-          {...form.register("isActive")}
-        />
-        <Label htmlFor="edit-isActive">Active</Label>
+
+      <div className="flex items-center space-x-6 pt-2">
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="edit-isActive"
+            className="h-4 w-4 rounded border-gray-300 accent-emerald-500"
+            {...form.register("isActive")}
+          />
+          <Label htmlFor="edit-isActive" className="cursor-pointer">Active</Label>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="edit-isOrientation"
+            className="h-4 w-4 rounded border-gray-300 accent-emerald-500"
+            {...form.register("isOrientation")}
+          />
+          <Label htmlFor="edit-isOrientation" className="cursor-pointer">Is Orientation Task</Label>
+        </div>
       </div>
-      <div className="flex items-center space-x-2">
-        <input
-          type="checkbox"
-          id="edit-isOrientation"
-          className="h-4 w-4 rounded border-gray-300"
-          {...form.register("isOrientation")}
-        />
-        <Label htmlFor="edit-isOrientation">Is Orientation Task</Label>
-      </div>
-      <Button type="submit" className="w-full">
+
+      <Button type="submit" className="w-full rounded-xl bg-accent text-accent-foreground font-semibold py-2.5">
         Update Task
       </Button>
     </form>

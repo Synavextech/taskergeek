@@ -43,21 +43,18 @@ if (typeof window !== 'undefined') {
   setVH();
 }
 
-// Online-first: Proactively unregister any legacy service workers and clear caches
+// Register Service Worker for PWA installation & offline performance
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then((registrations) => {
-    for (const registration of registrations) {
-      registration.unregister().catch(() => {});
-    }
-  }).catch(() => {});
-
-  if ('caches' in window) {
-    caches.keys().then((names) => {
-      for (const name of names) {
-        caches.delete(name).catch(() => {});
-      }
-    }).catch(() => {});
-  }
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((reg) => {
+        console.log('[PWA] Service worker registered successfully:', reg.scope);
+      })
+      .catch((err) => {
+        console.warn('[PWA] Service worker registration failed:', err);
+      });
+  });
 }
 
 createRoot(document.getElementById("root")!).render(

@@ -8,6 +8,7 @@ import {
     issueSessionCookie
 } from "./common";
 import { asyncHandler, sendSuccess, AppError } from "../middleware";
+import { emailService } from "../email";
 
 const router = Router();
 
@@ -268,6 +269,44 @@ router.post("/users/:id/verify-identity", async (req: any, res) => {
     }
 });
 
+router.patch("/users/:id/verify-phone", async (req: any, res) => {
+    try {
+        const userId = req.params.id;
+        const { verified, phone } = req.body;
+        const isVerified = verified !== undefined ? Boolean(verified) : true;
+
+        const updateData: any = {
+            phone_verified: isVerified,
+            updated_at: new Date().toISOString()
+        };
+        if (phone && typeof phone === 'string') {
+            updateData.phone = phone.trim();
+        }
+        if (isVerified) {
+            updateData.phone_verification_code = null;
+            updateData.phone_verification_expiry = null;
+        }
+
+        const user = await storage.updateUser(req.supabaseAdmin, userId, updateData);
+        if (!user) return res.status(404).json({ message: "User not found" });
+
+        await storage.createNotification(req.supabaseAdmin, {
+            user_id: userId,
+            title: isVerified ? "Phone Number Verified" : "Phone Verification Revoked",
+            message: isVerified
+                ? "Your phone number has been verified by platform administrators."
+                : "Your phone number verification status has been reset by administrators.",
+            type: "system",
+            is_read: false
+        });
+
+        res.json({ success: true, user });
+    } catch (error) {
+        console.error("[ADMIN] Phone verification toggle error:", error);
+        res.status(500).json({ message: "Failed to update phone verification status" });
+    }
+});
+
 router.patch("/users/:id/deactivate", async (req: any, res) => {
     try {
         const userId = req.params.id;
@@ -447,7 +486,33 @@ router.get("/tasks", async (req: any, res) => {
 
 router.patch("/tasks/:id", async (req: any, res) => {
     try {
-        const updates = { ...req.body };
+        const body = req.body;
+        const updates: any = {};
+
+        if (body.title !== undefined) updates.title = body.title;
+        if (body.description !== undefined) updates.description = body.description;
+        if (body.category !== undefined) updates.category = body.category;
+        if (body.taskType !== undefined) updates.task_type = body.taskType;
+        if (body.task_type !== undefined) updates.task_type = body.task_type;
+        if (body.url !== undefined) updates.url = body.url ? body.url.trim() : null;
+        if (body.reward !== undefined) updates.reward = String(body.reward);
+        if (body.hourlyRate !== undefined) updates.hourly_rate = parseFloat(body.hourlyRate) || 0;
+        if (body.hourly_rate !== undefined) updates.hourly_rate = parseFloat(body.hourly_rate) || 0;
+        if (body.minTier !== undefined) updates.min_tier = body.minTier;
+        if (body.min_tier !== undefined) updates.min_tier = body.min_tier;
+        if (body.isActive !== undefined) updates.is_active = Boolean(body.isActive);
+        if (body.is_active !== undefined) updates.is_active = Boolean(body.is_active);
+        if (body.isOrientation !== undefined) updates.is_orientation = Boolean(body.isOrientation);
+        if (body.is_orientation !== undefined) updates.is_orientation = Boolean(body.is_orientation);
+        if (body.attachments !== undefined) updates.attachments = body.attachments;
+        if (body.instructions !== undefined) updates.instructions = body.instructions;
+        if (body.maxParticipants !== undefined) updates.max_participants = parseInt(body.maxParticipants, 10) || 1;
+        if (body.max_participants !== undefined) updates.max_participants = parseInt(body.max_participants, 10) || 1;
+        if (body.estimatedDurationMinutes !== undefined) updates.estimated_duration_minutes = parseInt(body.estimatedDurationMinutes, 10) || 30;
+        if (body.estimated_duration_minutes !== undefined) updates.estimated_duration_minutes = parseInt(body.estimated_duration_minutes, 10) || 30;
+        if (body.projectStructure !== undefined) updates.project_structure = body.projectStructure;
+        if (body.project_structure !== undefined) updates.project_structure = body.project_structure;
+
         // If max_participants is increased beyond current_participants, reactivate project
         if (typeof updates.max_participants === 'number') {
             const { data: existing } = await req.supabaseAdmin.from('tasks').select('current_participants').eq('id', req.params.id).single();
@@ -456,8 +521,12 @@ router.patch("/tasks/:id", async (req: any, res) => {
             }
         }
         const task = await storage.updateTask(req.supabaseAdmin, req.params.id, updates);
+        if (!task) {
+            return res.status(404).json({ message: "Task not found or update failed" });
+        }
         res.json(task);
     } catch (error) {
+        console.error("Task update error:", error);
         res.status(400).json({ message: "Failed to update task" });
     }
 });
@@ -582,6 +651,19 @@ router.patch("/user-tasks/:id/approve", async (req: any, res) => {
                     type: "payment",
                     is_read: false
                 });
+
+                // Send email notification to user
+                const userObj = userTask.user || (await storage.getUser(req.supabaseAdmin, userTask.user_id));
+                if (userObj?.email) {
+                    emailService.sendTaskApprovedEmail(
+                        userObj.email,
+                        userObj.name || "Tasker",
+                        userTask.task?.title || "Task",
+                        reward,
+                        qualityScore,
+                        newAvailable
+                    ).catch(emailErr => console.error("[ADMIN] Failed to send task approval email:", emailErr));
+                }
             } catch (txError) {
                 console.error("[ADMIN] Failed to create transaction or notification:", txError);
             }
@@ -640,6 +722,18 @@ router.patch("/user-tasks/:id/reject", async (req: any, res) => {
             type: "task",
             is_read: false
         });
+
+        // Send task rejection email to user
+        const targetUser = userTask.user || (await storage.getUser(req.supabaseAdmin, userTask.user_id));
+        if (targetUser?.email) {
+            emailService.sendTaskRejectedEmail(
+                targetUser.email,
+                targetUser.name || "Tasker",
+                userTask.task?.title || "Task",
+                reason || "Submission did not meet quality benchmarks",
+                qualityScore
+            ).catch(emailErr => console.error("[ADMIN] Failed to send task rejection email:", emailErr));
+        }
 
         res.json({ success: true, message: "Task rejected and ratings updated" });
     } catch (error) {
@@ -754,6 +848,18 @@ router.patch("/withdrawals/:id", async (req: any, res) => {
             type: "payment",
             is_read: false
         });
+
+        // Send email notification for withdrawal status
+        const withdrawalUser = await storage.getUser(req.supabaseAdmin, withdrawal.user_id);
+        if (withdrawalUser?.email) {
+            emailService.sendWithdrawalStatusEmail(
+                withdrawalUser.email,
+                withdrawalUser.name || "Tasker",
+                withdrawal.amount,
+                status,
+                adminNotes
+            ).catch(emailErr => console.error("[ADMIN] Failed to send withdrawal status email:", emailErr));
+        }
 
         res.json({ success: true });
     } catch (error) {

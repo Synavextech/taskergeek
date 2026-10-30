@@ -33,7 +33,19 @@ import {
   Sparkles,
   Briefcase,
   Layers,
+  MessageCircle,
+  KeyRound,
+  ExternalLink,
+  RefreshCw,
+  Send,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { FriendsManagement } from "@/components/FriendsManagement";
 import { useLocation } from "wouter";
@@ -53,6 +65,13 @@ export default function Profile() {
   const [isUploading, setIsUploading] = useState(false);
   const [taxFiles, setTaxFiles] = useState<FileList | null>(null);
   const [isUploadingTax, setIsUploadingTax] = useState(false);
+
+  const [isPhoneVerifyOpen, setIsPhoneVerifyOpen] = useState(false);
+  const [verificationStep, setVerificationStep] = useState<'request' | 'enter_code'>('request');
+  const [phoneToVerify, setPhoneToVerify] = useState(user?.phone || "");
+  const [inputOtpCode, setInputOtpCode] = useState("");
+  const [whatsappUrl, setWhatsappUrl] = useState("");
+  const [sentCodeDisplay, setSentCodeDisplay] = useState("");
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -167,6 +186,54 @@ export default function Profile() {
       toast({
         title: "Error",
         description: error.message || "Failed to update profile",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const sendPhoneVerificationMutation = useMutation({
+    mutationFn: async (phone: string) => {
+      const res = await apiRequest("POST", "/api/auth/phone/send-verification", { phone });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      setWhatsappUrl(data.whatsappUrl || "");
+      if (data.code) setSentCodeDisplay(data.code);
+      setVerificationStep('enter_code');
+      toast({
+        title: "Verification Code Ready",
+        description: "Choose to verify directly via WhatsApp or enter your 6-digit code below.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Request Failed",
+        description: error.message || "Failed to generate verification code",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const verifyPhoneCodeMutation = useMutation({
+    mutationFn: async (code: string) => {
+      const res = await apiRequest("POST", "/api/auth/phone/verify-code", { code });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Phone Verified",
+        description: "Your phone number has been successfully verified via WhatsApp!",
+      });
+      setIsPhoneVerifyOpen(false);
+      setInputOtpCode("");
+      setVerificationStep('request');
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Verification Failed",
+        description: error.message || "Invalid or expired verification code",
         variant: "destructive",
       });
     },
@@ -423,8 +490,34 @@ export default function Profile() {
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <span className="text-muted-foreground font-medium text-xs">Phone Number</span>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground font-medium text-xs">Phone Number</span>
+                  {user?.phone_verified ? (
+                    <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1 text-[11px] font-semibold py-0.5">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Verified
+                    </Badge>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="outline" className="text-amber-400 border-amber-500/30 gap-1 text-[10px] py-0.5">
+                        <AlertCircle className="w-2.5 h-2.5" /> Unverified
+                      </Badge>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => {
+                          setPhoneToVerify(user?.phone || '');
+                          setVerificationStep('request');
+                          setIsPhoneVerifyOpen(true);
+                        }}
+                        className="rounded-lg h-6 px-2 text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold gap-1 shadow-sm"
+                      >
+                        <MessageCircle className="w-3 h-3" /> Verify via WhatsApp
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
                 {isEditing ? (
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-2">
                     <Input
@@ -454,12 +547,168 @@ export default function Profile() {
                     </div>
                   </form>
                 ) : (
-                  <div className="p-3 bg-muted/60 rounded-xl font-semibold text-foreground">
-                    {user?.phone || "No phone recorded"}
+                  <div className="p-3 bg-muted/60 rounded-xl font-semibold text-foreground flex items-center justify-between">
+                    <span>{user?.phone || "No phone recorded"}</span>
+                    {user?.phone && !user?.phone_verified && (
+                      <button
+                        onClick={() => {
+                          setPhoneToVerify(user.phone);
+                          setVerificationStep('request');
+                          setIsPhoneVerifyOpen(true);
+                        }}
+                        className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold underline underline-offset-2"
+                      >
+                        Verify Now
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
             </div>
+
+            {/* WhatsApp Phone Verification Modal */}
+            <Dialog open={isPhoneVerifyOpen} onOpenChange={setIsPhoneVerifyOpen}>
+              <DialogContent className="sm:max-w-md rounded-3xl border-border/80 bg-card/95 backdrop-blur-2xl">
+                <DialogHeader className="text-left space-y-2">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mb-1">
+                    <MessageCircle className="w-6 h-6 text-emerald-400" />
+                  </div>
+                  <DialogTitle className="text-lg font-bold text-foreground">
+                    Verify Phone Number via WhatsApp
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
+                    Verify your international contact number to enable instant task alerts, fast dispute handling, and accelerated payout processing.
+                  </DialogDescription>
+                </DialogHeader>
+
+                {verificationStep === 'request' ? (
+                  <div className="space-y-4 pt-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="verify-phone-input" className="text-xs font-semibold text-foreground">
+                        International Phone Number
+                      </Label>
+                      <Input
+                        id="verify-phone-input"
+                        value={phoneToVerify}
+                        onChange={(e) => setPhoneToVerify(e.target.value)}
+                        placeholder="+1 978 523 6630"
+                        className="rounded-xl h-11 text-sm bg-muted/50 border-border/60"
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        Include country code (e.g. +1 for US/Canada, +44 for UK, +254 for Kenya).
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        type="button"
+                        onClick={() => sendPhoneVerificationMutation.mutate(phoneToVerify)}
+                        disabled={sendPhoneVerificationMutation.isPending || !phoneToVerify.trim()}
+                        className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs h-10 shadow-md shadow-emerald-600/20"
+                      >
+                        {sendPhoneVerificationMutation.isPending ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Generating Code...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-3.5 h-3.5 mr-1.5" /> Send Verification Code
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsPhoneVerifyOpen(false)}
+                        className="rounded-xl text-xs h-10"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4 pt-2">
+                    {/* Multi-Option Dispatch Details */}
+                    <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-2">
+                      <div className="flex items-center justify-between text-xs font-semibold text-emerald-400">
+                        <span>Option 1: Quick Verify via WhatsApp</span>
+                        <Badge className="bg-emerald-500/20 text-emerald-400 text-[10px]">Recommended</Badge>
+                      </div>
+                      <p className="text-[12px] text-foreground/80 leading-relaxed">
+                        Tap the button below to open a pre-filled verification message directly in WhatsApp with our official verification desk:
+                      </p>
+                      {whatsappUrl && (
+                        <a
+                          href={whatsappUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center gap-1.5 w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 transition-all shadow-sm"
+                        >
+                          <MessageCircle className="w-4 h-4" /> Open Official WhatsApp Support <ExternalLink className="w-3.5 h-3.5 ml-0.5" />
+                        </a>
+                      )}
+                    </div>
+
+                    <div className="relative flex py-1 items-center">
+                      <div className="flex-grow border-t border-border/60"></div>
+                      <span className="flex-shrink mx-3 text-[11px] text-muted-foreground uppercase font-semibold">
+                        Or Option 2: Enter Code
+                      </span>
+                      <div className="flex-grow border-t border-border/60"></div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="otp-input" className="text-xs font-semibold text-foreground flex items-center justify-between">
+                        <span>6-Digit Verification Code</span>
+                        {sentCodeDisplay && (
+                          <span className="text-[11px] text-accent font-mono">Code: {sentCodeDisplay}</span>
+                        )}
+                      </Label>
+                      <Input
+                        id="otp-input"
+                        value={inputOtpCode}
+                        onChange={(e) => setInputOtpCode(e.target.value)}
+                        placeholder="e.g. 849201"
+                        maxLength={6}
+                        className="rounded-xl h-12 text-center text-lg font-mono tracking-widest bg-muted/50 border-border/60"
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        Code expires in 10 minutes. Check your WhatsApp or support desk response.
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        type="button"
+                        onClick={() => verifyPhoneCodeMutation.mutate(inputOtpCode)}
+                        disabled={verifyPhoneCodeMutation.isPending || inputOtpCode.trim().length !== 6}
+                        className="flex-1 rounded-xl bg-accent text-accent-foreground hover:bg-accent/90 font-semibold text-xs h-10 shadow-md shadow-accent/20"
+                      >
+                        {verifyPhoneCodeMutation.isPending ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Verifying...
+                          </>
+                        ) : (
+                          <>
+                            <KeyRound className="w-3.5 h-3.5 mr-1.5" /> Confirm Verification
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => sendPhoneVerificationMutation.mutate(phoneToVerify)}
+                        disabled={sendPhoneVerificationMutation.isPending}
+                        className="rounded-xl text-xs h-10 px-3"
+                        title="Resend verification code"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${sendPhoneVerificationMutation.isPending ? 'animate-spin' : ''}`} />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
           </Card>
 
           {/* Identity & Tax Verification Card */}

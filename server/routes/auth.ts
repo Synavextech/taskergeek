@@ -227,7 +227,7 @@ router.post('/verify-reset-otp', otpRateLimit, asyncHandler(async (req: any, res
     const cleanCode = String(code).replace(/\D/g, '').trim();
 
     // 1. Try custom backend OTP challenge
-    const verification = securityService.verifyPasswordResetOTP(normalizedEmail, cleanCode);
+    const verification = await securityService.verifyPasswordResetOTP(normalizedEmail, cleanCode);
     if (verification.success) {
         authLog('password-reset-otp-verified', { email: normalizedEmail });
         return sendSuccess(res, {
@@ -295,7 +295,7 @@ router.post('/reset-password', otpRateLimit, asyncHandler(async (req: any, res: 
 
     // 2. Check custom securityService challenge
     if (!isVerified) {
-        const verification = securityService.validateAndConsumeReset(normalizedEmail, resetToken || cleanCode);
+        const verification = await securityService.validateAndConsumeReset(normalizedEmail, resetToken || cleanCode);
         if (verification.success) {
             isVerified = true;
         }
@@ -636,6 +636,112 @@ router.patch('/deactivate', authenticateUser, async (req: any, res) => {
     }
 });
 
+// Phone Verification via WhatsApp
+router.post('/phone/send-verification', authenticateUser, async (req: any, res) => {
+    try {
+        const { phone } = req.body;
+        const targetPhone = phone || req.user.phone;
+
+        if (!targetPhone || typeof targetPhone !== 'string' || targetPhone.trim().length < 8) {
+            return res.status(400).json({ message: "A valid international phone number is required" });
+        }
+
+        const cleanedPhone = targetPhone.trim();
+        // Generate a 6-digit verification code
+        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
+
+        // Persist code and unverified status to user profile
+        await req.supabaseAdmin
+            .from('users')
+            .update({
+                phone: cleanedPhone,
+                phone_verified: false,
+                phone_verification_code: otpCode,
+                phone_verification_expiry: expiresAt,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', req.user.id);
+
+        const supportPhone = process.env.WHATSAPP_SUPPORT_PHONE || "19785236630";
+        const messageText = `Hello ProTaskerGeek Support! Please verify my phone number: ${cleanedPhone} (Verification Code: ${otpCode}, User: ${req.user.email})`;
+        const whatsappUrl = `https://wa.me/${supportPhone}?text=${encodeURIComponent(messageText)}`;
+
+        res.json({
+            success: true,
+            message: "Verification code generated successfully",
+            code: otpCode,
+            phone: cleanedPhone,
+            whatsappUrl,
+            expiresAt
+        });
+    } catch (error: any) {
+        console.error("[AUTH] Send phone verification error:", error);
+        res.status(500).json({ message: "Failed to generate phone verification code" });
+    }
+});
+
+router.post('/phone/verify-code', authenticateUser, async (req: any, res) => {
+    try {
+        const { code } = req.body;
+        if (!code || typeof code !== 'string') {
+            return res.status(400).json({ message: "Verification code is required" });
+        }
+
+        const { data: userProfile, error } = await req.supabaseAdmin
+            .from('users')
+            .select('id, phone, phone_verification_code, phone_verification_expiry')
+            .eq('id', req.user.id)
+            .single();
+
+        if (error || !userProfile) {
+            return res.status(404).json({ message: "User profile not found" });
+        }
+
+        if (!userProfile.phone_verification_code) {
+            return res.status(400).json({ message: "No active verification code found. Please request a new code." });
+        }
+
+        const now = new Date();
+        const expiry = new Date(userProfile.phone_verification_expiry);
+
+        if (now > expiry) {
+            return res.status(400).json({ message: "Verification code has expired. Please request a new code." });
+        }
+
+        if (userProfile.phone_verification_code.trim() !== code.trim()) {
+            return res.status(400).json({ message: "Incorrect verification code. Please check and try again." });
+        }
+
+        // Successfully verified!
+        await req.supabaseAdmin
+            .from('users')
+            .update({
+                phone_verified: true,
+                phone_verification_code: null,
+                phone_verification_expiry: null,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', req.user.id);
+
+        await storage.createNotification(req.supabaseAdmin, {
+            user_id: req.user.id,
+            title: "Phone Verified",
+            message: `Your phone number (${userProfile.phone}) has been verified successfully via WhatsApp.`,
+            type: "system",
+            is_read: false
+        });
+
+        res.json({
+            success: true,
+            message: "Phone number verified successfully!"
+        });
+    } catch (error: any) {
+        console.error("[AUTH] Verify phone code error:", error);
+        res.status(500).json({ message: "Failed to verify phone code" });
+    }
+});
+
 router.post('/login', authRateLimit, accountRateLimit, asyncHandler(async (req: any, res: Response) => {
     const { email, password } = req.body;
 
@@ -656,7 +762,7 @@ router.post('/login', authRateLimit, accountRateLimit, asyncHandler(async (req: 
             throw new AppError('Please confirm your email address before logging in. A confirmation link has been sent to your inbox.', 403, 'EMAIL_NOT_CONFIRMED');
         }
         const failCount = recordAccountAuthFailure(email);
-        anomalyDetector.recordFailure(email, clientIp);
+        await anomalyDetector.recordFailure(email, clientIp, userAgent);
 
         // Record security alert and notify user
         try {
@@ -720,7 +826,7 @@ router.post('/login', authRateLimit, accountRateLimit, asyncHandler(async (req: 
     clearAccountAuthFailure(email);
 
     // Evaluate for suspicious activity / anomaly
-    const anomalyCheck = anomalyDetector.isSuspicious(profile.id, profile.email, clientIp, userAgent);
+    const anomalyCheck = await anomalyDetector.isSuspicious(profile.id, profile.email, clientIp, userAgent);
 
     if (anomalyCheck.suspicious) {
         console.warn(`[SECURITY] Suspicious login detected for ${profile.email}: ${anomalyCheck.reasons.join(", ")}`);
@@ -746,7 +852,7 @@ router.post('/login', authRateLimit, accountRateLimit, asyncHandler(async (req: 
     }
 
     // Normal safe login: record device & establish session
-    anomalyDetector.recordSuccess(profile.id, profile.email, clientIp, userAgent);
+    await anomalyDetector.recordSuccess(profile.id, profile.email, clientIp, userAgent);
     issueSessionCookie(res, profile);
 
     if (req.session) {
@@ -778,41 +884,18 @@ router.post('/verify-otp', otpRateLimit, asyncHandler(async (req: any, res: Resp
 
     const cleanCode = String(otpCode).replace(/\D/g, '').trim();
 
-    let verification = securityService.verifyChallenge(challengeToken, cleanCode);
-    let userProfile = verification?.userProfile;
-    let supabaseSession = verification?.supabaseSession;
-
-    // Fallback: If custom verification fails, check Supabase native OTP verification
-    if (!verification.success) {
-        const challenge = securityService.getChallenge(challengeToken);
-        if (challenge) {
-            try {
-                const sbAnon = createAnonClient();
-                const { data: sbData, error: sbError } = await sbAnon.auth.verifyOtp({
-                    email: challenge.email,
-                    token: cleanCode,
-                    type: 'email'
-                });
-
-                if (!sbError && sbData?.user) {
-                    userProfile = challenge.userProfile;
-                    supabaseSession = sbData.session || challenge.supabaseSession;
-                    securityService.consumeChallenge(challengeToken);
-                    verification = { success: true, userProfile, supabaseSession };
-                }
-            } catch (err) {
-                console.warn('[AUTH] Error during fallback Supabase OTP verification:', err);
-            }
-        }
-    }
+    // Verify against custom security challenge
+    const verification = await securityService.verifyChallenge(challengeToken, cleanCode);
+    const userProfile = verification?.userProfile;
+    const supabaseSession = verification?.supabaseSession;
 
     if (!verification.success || !userProfile) {
         throw new AppError(verification.error || 'Invalid or expired verification code', 400, 'OTP_VERIFICATION_FAILED');
     }
 
-    // Trust new device/IP and clear failure states
-    anomalyDetector.recordSuccess(userProfile.id, userProfile.email, clientIp, userAgent);
-    anomalyDetector.resetFailures(userProfile.email);
+    // Trust new device/IP and clear failure states in memory and Supabase
+    await anomalyDetector.recordSuccess(userProfile.id, userProfile.email, clientIp, userAgent);
+    await anomalyDetector.resetFailures(userProfile.email);
 
     issueSessionCookie(res, userProfile);
 
@@ -841,22 +924,11 @@ router.post('/resend-otp', otpRateLimit, asyncHandler(async (req: any, res: Resp
         throw new AppError('Challenge token is required', 400, 'VALIDATION_ERROR');
     }
 
-    const challenge = securityService.getChallenge(challengeToken);
+    // Resend fresh OTP via custom SMTP with 45s cooldown
     const resend = await securityService.resendCode(challengeToken);
 
     if (!resend.success) {
         throw new AppError(resend.error || 'Failed to resend code', 400, 'RESEND_FAILED');
-    }
-
-    if (challenge) {
-        try {
-            await req.supabase.auth.signInWithOtp({
-                email: challenge.email,
-                options: { shouldCreateUser: false }
-            });
-        } catch (err) {
-            console.warn('[AUTH] Notice: Supabase resend signInWithOtp:', err);
-        }
     }
 
     return sendSuccess(res, { success: true }, 'A new verification code has been sent to your email');

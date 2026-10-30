@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Download, X } from "lucide-react";
+import { Download, X, Share2, PlusSquare, Smartphone } from "lucide-react";
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -13,31 +13,55 @@ interface BeforeInstallPromptEvent extends Event {
 
 export function PWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [showInstallButton, setShowInstallButton] = useState(false);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [isIosDevice, setIsIosDevice] = useState(false);
 
   useEffect(() => {
+    // Check if app is already running in standalone mode (already installed)
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as any).standalone === true ||
+      document.referrer.includes('android-app://');
+
+    if (isStandalone) {
+      setShowInstallBanner(false);
+      return;
+    }
+
+    // Check if dismissed in last 24 hours
+    const dismissed = localStorage.getItem('pwa-install-dismissed');
+    if (dismissed) {
+      const dismissedTime = parseInt(dismissed, 10);
+      const twentyFourHours = 24 * 60 * 60 * 1000;
+      if (Date.now() - dismissedTime < twentyFourHours) {
+        setShowInstallBanner(false);
+        return;
+      }
+    }
+
+    // Detect iOS
+    const ua = window.navigator.userAgent.toLowerCase();
+    const isIos = /iphone|ipad|ipod/.test(ua) && !(window as any).MSStream;
+    if (isIos) {
+      setIsIosDevice(true);
+      setShowInstallBanner(true);
+    }
+
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       const promptEvent = e as BeforeInstallPromptEvent;
       setDeferredPrompt(promptEvent);
-      setShowInstallButton(true);
+      setShowInstallBanner(true);
     };
 
     const handleAppInstalled = () => {
       setDeferredPrompt(null);
-      setShowInstallButton(false);
+      setShowInstallBanner(false);
+      localStorage.setItem('pwa-installed', 'true');
     };
+
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
-
-    // Check if app is already installed (more robust detection)
-     const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
-                         (window.navigator as any).standalone === true ||
-                         document.referrer.includes('android-app://');
-
-     if (isStandalone) {
-       setShowInstallButton(false);
-     }
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -51,57 +75,86 @@ export function PWAInstall() {
     try {
       await deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      
+
       if (outcome === 'accepted') {
         setDeferredPrompt(null);
-        setShowInstallButton(false);
+        setShowInstallBanner(false);
       }
     } catch (error) {
-      // Error during app installation
+      console.warn('[PWA] User installation error:', error);
     }
   };
 
   const handleDismiss = () => {
-    setShowInstallButton(false);
-    // Hide for 24 hours
+    setShowInstallBanner(false);
     localStorage.setItem('pwa-install-dismissed', Date.now().toString());
   };
-  useEffect(() => {
-    const dismissed = localStorage.getItem('pwa-install-dismissed');
-    if (dismissed) {
-      const dismissedTime = parseInt(dismissed);
-      const twentyFourHours = 24 * 60 * 60 * 1000;
-      if (Date.now() - dismissedTime < twentyFourHours) {
-        setShowInstallButton(false);
-      }
-    }
-  }, []);
 
-  if (!showInstallButton || !deferredPrompt) {
+  if (!showInstallBanner) {
     return null;
   }
+
   return (
-    <div className="fixed top-4 right-4 z-50 max-w-sm">
-      <div className="bg-card border border-border rounded-lg shadow-lg p-4 animate-slide-in-right">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="text-2xl">📱</div>
-            <h3 className="font-semibold text-sm">Install ProTasker App</h3>
+    <div className="fixed bottom-5 right-5 z-50 max-w-sm w-full px-4 sm:px-0 animate-in fade-in slide-in-from-bottom-5 duration-300">
+      <div className="relative overflow-hidden rounded-2xl border border-accent/30 bg-card/95 backdrop-blur-xl p-4 shadow-2xl ring-1 ring-white/10">
+        <div className="flex items-start justify-between gap-3 mb-2.5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center text-accent ring-1 ring-accent/30">
+              <Smartphone className="w-5 h-5 text-accent" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                Install ProTasker.Geek
+              </h3>
+              <p className="text-[11px] text-muted-foreground">Faster loading & native app experience</p>
+            </div>
           </div>
           <Button
             variant="ghost"
             size="sm"
             onClick={handleDismiss}
-            className="h-6 w-6 p-0"
+            className="h-7 w-7 p-0 rounded-full text-muted-foreground hover:text-foreground"
+            aria-label="Dismiss banner"
           >
             <X className="h-4 w-4" />
           </Button>
         </div>
-        
-        <p className="text-sm text-muted-foreground mb-3"> For a better interactive Experience and Offline Access, We Recomend you Install our App. </p>
-        <div className="flex gap-2">
-          <Button onClick={handleInstallClick} size="sm"  className="flex-1 bg-accent hover:bg-accent/90" > <Download className="h-4 w-4 mr-1" /> Install Now </Button>
-          <Button onClick={handleDismiss}  variant="outline"  size="sm"  > Remind me Later
+
+        {isIosDevice && !deferredPrompt ? (
+          <div className="mb-3 p-2.5 rounded-xl bg-muted/60 border border-border/40 text-[12px] text-muted-foreground space-y-1">
+            <p className="flex items-center gap-1.5 font-medium text-foreground">
+              Install on iOS Safari:
+            </p>
+            <p className="flex items-center gap-1.5">
+              1. Tap the Share button <Share2 className="w-3.5 h-3.5 text-accent inline" />
+            </p>
+            <p className="flex items-center gap-1.5">
+              2. Select <PlusSquare className="w-3.5 h-3.5 text-accent inline" /> <strong>Add to Home Screen</strong>
+            </p>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground mb-3 leading-relaxed">
+            Install our high-speed desktop/mobile app for instant order notifications and offline access.
+          </p>
+        )}
+
+        <div className="flex items-center gap-2">
+          {deferredPrompt && (
+            <Button
+              onClick={handleInstallClick}
+              size="sm"
+              className="flex-1 rounded-xl bg-accent text-accent-foreground hover:bg-accent/90 font-semibold text-xs shadow-md shadow-accent/20 h-9"
+            >
+              <Download className="h-3.5 w-3.5 mr-1.5" /> Install App
+            </Button>
+          )}
+          <Button
+            onClick={handleDismiss}
+            variant="outline"
+            size="sm"
+            className="rounded-xl border-border/60 text-xs h-9 font-medium"
+          >
+            Later
           </Button>
         </div>
       </div>
